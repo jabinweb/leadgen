@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Send,
   Copy,
-  CreditCard
+  CreditCard,
+  FlaskConical,
+  List
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -40,6 +42,8 @@ const navigation: NavigationItem[] = [
     children: [
       { name: 'Campaigns', href: '/dashboard/campaigns', icon: Send },
       { name: 'Drafts', href: '/dashboard/emails/drafts', icon: FileText },
+      { name: 'Email Log', href: '/dashboard/emails/log', icon: List },
+      { name: 'Email Tester', href: '/dashboard/emails/test', icon: FlaskConical },
     ]
   },
   { name: 'Scraping Jobs', href: '/dashboard/scraping', icon: Search },

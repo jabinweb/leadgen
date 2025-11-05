@@ -51,6 +51,7 @@ model User {
   emailCampaigns  EmailCampaign[]
   emailTemplates  EmailTemplate[]
   emailDrafts     EmailDraft[]
+  emailLogs       EmailLog[]
   leadActivities  LeadActivity[]
   profile         UserProfile?
   subscription    Subscription?
@@ -127,6 +128,7 @@ model Lead {
   scrapingJob       ScrapingJob?       @relation(fields: [scrapingJobId], references: [id])
   enrichmentData    LeadEnrichment?
   emailCampaignLeads EmailCampaignLead[]
+  emailLogs         EmailLog[]
   activities        LeadActivity[]
 
   @@index([companyName])
@@ -186,6 +188,7 @@ model EmailCampaign {
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   emailCampaignLeads  EmailCampaignLead[]
   emailEvents         EmailEvent[]
+  emailLogs           EmailLog[]
 
   @@index([userId])
   @@index([status])
@@ -482,4 +485,48 @@ enum PaymentStatus {
   CAPTURED
   REFUNDED
   FAILED
+}
+
+model EmailLog {
+  id            String         @id @default(cuid())
+  userId        String
+  leadId        String?
+  campaignId    String?
+  to            String
+  subject       String
+  body          String?        @db.Text
+  status        EmailLogStatus @default(PENDING)
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  bouncedAt     DateTime?
+  repliedAt     DateTime?
+  replyBody     String?        @db.Text
+  replySubject  String?
+  errorMessage  String?
+  metadata      Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead     Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  campaign EmailCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([campaignId])
+  @@index([status])
+  @@index([sentAt])
+}
+
+enum EmailLogStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  FAILED
+  REPLIED
 }
