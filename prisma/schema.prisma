@@ -71,6 +71,24 @@ model UserProfile {
   service           String?  @db.Text
   targetAudience    String?
   valueProposition  String?  @db.Text
+  companyEmail      String?
+  useAdminEmail     Boolean  @default(true)
+  
+  // Per-user SMTP Configuration
+  smtpHost          String?
+  smtpPort          Int?     @default(587)
+  smtpSecure        Boolean? @default(false)
+  smtpUser          String?
+  smtpPassword      String?  // Will be encrypted
+  smtpFrom          String?  // Display name for emails
+  
+  // IMAP Configuration (for receiving emails/replies)
+  imapHost          String?
+  imapPort          Int?     @default(993)
+  imapSecure        Boolean? @default(true)
+  imapUser          String?
+  imapPassword      String?  // Will be encrypted
+  
   isComplete        Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -496,6 +514,7 @@ model EmailLog {
   subject       String
   body          String?        @db.Text
   status        EmailLogStatus @default(PENDING)
+  messageId     String?        // Message-ID header for precise reply matching
   sentAt        DateTime?
   deliveredAt   DateTime?
   openedAt      DateTime?
@@ -518,6 +537,7 @@ model EmailLog {
   @@index([campaignId])
   @@index([status])
   @@index([sentAt])
+  @@index([messageId])
 }
 
 enum EmailLogStatus {

@@ -18,10 +18,13 @@ import {
   Copy,
   CreditCard,
   FlaskConical,
-  List
+  List,
+  MailOpen,
+  Star,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 interface NavigationItem {
@@ -40,10 +43,14 @@ const navigation: NavigationItem[] = [
     href: '/dashboard/emails', 
     icon: Mail,
     children: [
-      { name: 'Campaigns', href: '/dashboard/campaigns', icon: Send },
-      { name: 'Drafts', href: '/dashboard/emails/drafts', icon: FileText },
+      { name: 'Sent', href: '/dashboard/emails?folder=sent', icon: Send },
+      { name: 'Drafts', href: '/dashboard/emails?folder=drafts', icon: FileText },
+      { name: 'Starred', href: '/dashboard/emails?folder=starred', icon: Star },
+      { name: 'Trash', href: '/dashboard/emails?folder=trash', icon: Trash2 },
+      { name: 'Campaigns', href: '/dashboard/campaigns', icon: MailOpen },
       { name: 'Email Log', href: '/dashboard/emails/log', icon: List },
       { name: 'Email Tester', href: '/dashboard/emails/test', icon: FlaskConical },
+      { name: 'Email Settings', href: '/dashboard/emails/settings', icon: Settings },
     ]
   },
   { name: 'Scraping Jobs', href: '/dashboard/scraping', icon: Search },
@@ -55,6 +62,7 @@ const navigation: NavigationItem[] = [
     href: '/dashboard/settings', 
     icon: Settings,
     children: [
+      { name: 'General', href: '/dashboard/settings', icon: Settings },
       { name: 'Subscription', href: '/dashboard/settings/subscription', icon: CreditCard },
     ]
   },
@@ -62,6 +70,7 @@ const navigation: NavigationItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['Emails']);
 
   const toggleMenu = (menuName: string) => {
@@ -72,10 +81,38 @@ export function Sidebar() {
     );
   };
 
-  const isActive = (href: string) => pathname === href;
+  const isActive = (href: string) => {
+    // Split href into path and query
+    const [hrefPath, hrefQuery] = href.split('?');
+    
+    // Check if pathname matches
+    if (pathname !== hrefPath) {
+      return false;
+    }
+    
+    // If no query in href, just check pathname
+    if (!hrefQuery) {
+      return pathname === hrefPath;
+    }
+    
+    // Parse query params from href
+    const hrefParams = new URLSearchParams(hrefQuery);
+    
+    // Check if all href params match current params
+    const hrefParamsArray = Array.from(hrefParams.entries());
+    for (let i = 0; i < hrefParamsArray.length; i++) {
+      const [key, value] = hrefParamsArray[i];
+      if (searchParams.get(key) !== value) {
+        return false;
+      }
+    }
+    
+    return true;
+  };
+  
   const isParentActive = (item: NavigationItem) => {
     if (item.children) {
-      return item.children.some(child => pathname === child.href || pathname.startsWith(child.href + '/'));
+      return item.children.some(child => isActive(child.href) || pathname.startsWith(child.href.split('?')[0] + '/'));
     }
     return false;
   };
@@ -96,12 +133,15 @@ export function Sidebar() {
                       variant={isParentActive(item) ? "secondary" : "ghost"}
                       className={cn(
                         "w-full justify-between",
-                        isParentActive(item) && "bg-muted"
+                        isParentActive(item) && "bg-muted font-medium"
                       )}
                       onClick={() => toggleMenu(item.name)}
                     >
                       <div className="flex items-center">
-                        <item.icon className="mr-2 h-4 w-4" />
+                        <item.icon className={cn(
+                          "mr-2 h-4 w-4",
+                          isParentActive(item) && "text-blue-600"
+                        )} />
                         {item.name}
                       </div>
                       {expandedMenus.includes(item.name) ? (
@@ -118,12 +158,15 @@ export function Sidebar() {
                             variant={isActive(child.href) ? "secondary" : "ghost"}
                             className={cn(
                               "w-full justify-start text-sm",
-                              isActive(child.href) && "bg-muted"
+                              isActive(child.href) && "bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-500"
                             )}
                             asChild
                           >
                             <Link href={child.href}>
-                              <child.icon className="mr-2 h-3 w-3" />
+                              <child.icon className={cn(
+                                "mr-2 h-3 w-3",
+                                isActive(child.href) && "text-blue-600"
+                              )} />
                               {child.name}
                             </Link>
                           </Button>
@@ -136,12 +179,15 @@ export function Sidebar() {
                     variant={isActive(item.href) ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start",
-                      isActive(item.href) && "bg-muted"
+                      isActive(item.href) && "bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-500"
                     )}
                     asChild
                   >
                     <Link href={item.href}>
-                      <item.icon className="mr-2 h-4 w-4" />
+                      <item.icon className={cn(
+                        "mr-2 h-4 w-4",
+                        isActive(item.href) && "text-blue-600"
+                      )} />
                       {item.name}
                     </Link>
                   </Button>

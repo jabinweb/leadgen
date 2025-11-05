@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { sendEmail } from '@/lib/email/nodemailer';
 import { createEmailLog } from '@/lib/email-logger';
+import { getUserSmtpConfig } from '@/lib/smtp-config';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +26,21 @@ export async function POST(request: NextRequest) {
         { error: 'Recipient email is required' },
         { status: 400 }
       );
+    }
+
+    // Get user's SMTP configuration
+    const smtpConfig = await getUserSmtpConfig(session.user.id);
+    if (!smtpConfig && (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD)) {
+      return NextResponse.json(
+        { error: 'Email service not configured. Please set up SMTP credentials in Settings or environment variables.' },
+        { status: 500 }
+      );
+    }
+
+    if (smtpConfig) {
+      console.log(`Using user's custom SMTP for test email: ${smtpConfig.host}`);
+    } else {
+      console.log('Using default SMTP from environment for test email');
     }
 
     // Build email content
@@ -77,9 +93,10 @@ export async function POST(request: NextRequest) {
         text: finalTextBody,
         html: finalHtmlBody,
         from: fromName
-          ? `${fromName} <${process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com'}>`
+          ? `${fromName} <${smtpConfig?.from || process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@example.com'}>`
           : undefined,
         replyTo: replyTo || undefined,
+        smtpConfig: smtpConfig || undefined,
       });
 
       // Update log status

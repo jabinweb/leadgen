@@ -1,17 +1,48 @@
 import nodemailer from 'nodemailer';
+import { decrypt } from '@/lib/encryption';
 
-// Create reusable transporter
-const createTransporter = () => {
-  // You can configure this with different email providers
-  // Gmail, SendGrid, AWS SES, etc.
+interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+}
+
+// Create reusable transporter with custom or default config
+const createTransporter = (customConfig?: SmtpConfig) => {
+  if (customConfig) {
+    // Use per-user SMTP configuration
+    return nodemailer.createTransport({
+      host: customConfig.host,
+      port: customConfig.port,
+      secure: customConfig.secure, // true for 465, false for other ports
+      auth: {
+        user: customConfig.user,
+        pass: customConfig.password,
+      },
+      // Explicitly require TLS when not using secure (enables STARTTLS for port 587)
+      requireTLS: !customConfig.secure,
+      tls: {
+        // Do not fail on invalid certs (for development/self-signed)
+        rejectUnauthorized: false,
+      },
+    });
+  }
   
+  // Fallback to default SMTP configuration from environment
+  const isSecure = process.env.SMTP_SECURE === 'true';
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    secure: isSecure,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
+    },
+    requireTLS: !isSecure,
+    tls: {
+      rejectUnauthorized: false,
     },
   });
 };
@@ -23,12 +54,14 @@ interface SendEmailOptions {
   text?: string;
   from?: string;
   replyTo?: string;
+  smtpConfig?: SmtpConfig;
 }
 
 export async function sendEmail(options: SendEmailOptions) {
-  const transporter = createTransporter();
+  const transporter = createTransporter(options.smtpConfig);
 
-  const from = options.from || process.env.SMTP_FROM || process.env.SMTP_USER;
+  const from = options.from || 
+    (options.smtpConfig ? options.smtpConfig.user : (process.env.SMTP_FROM || process.env.SMTP_USER));
 
   const mailOptions = {
     from: from,

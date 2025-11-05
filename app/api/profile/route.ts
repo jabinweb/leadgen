@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { encrypt } from '@/lib/encryption';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,11 +25,27 @@ export async function GET(request: NextRequest) {
         service: '',
         targetAudience: '',
         valueProposition: '',
+        companyEmail: '',
+        smtpHost: '',
+        smtpPort: 587,
+        smtpSecure: false,
+        smtpUser: '',
+        smtpFrom: '',
+        imapHost: '',
+        imapPort: 993,
+        imapSecure: true,
+        imapUser: '',
         isComplete: false,
       });
     }
 
-    return NextResponse.json(profile);
+    // Don't return encrypted passwords, but indicate if they exist
+    const { smtpPassword, imapPassword, ...profileData } = profile;
+    return NextResponse.json({
+      ...profileData,
+      hasSmtpPassword: !!smtpPassword,
+      hasImapPassword: !!imapPassword,
+    });
   } catch (error) {
     console.error('Error fetching profile:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -52,7 +69,33 @@ export async function POST(request: NextRequest) {
       service,
       targetAudience,
       valueProposition,
+      companyEmail,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      smtpPassword,
+      smtpFrom,
+      imapHost,
+      imapPort,
+      imapSecure,
+      imapUser,
+      imapPassword,
     } = data;
+
+    // Encrypt SMTP password if provided
+    let encryptedSmtpPassword: string | undefined;
+    if (smtpPassword) {
+      encryptedSmtpPassword = encrypt(smtpPassword);
+      console.log('SMTP password encrypted');
+    }
+
+    // Encrypt IMAP password if provided
+    let encryptedImapPassword: string | undefined;
+    if (imapPassword) {
+      encryptedImapPassword = encrypt(imapPassword);
+      console.log('IMAP password encrypted');
+    }
 
     // Check if profile is complete
     const isComplete = !!(
@@ -61,6 +104,15 @@ export async function POST(request: NextRequest) {
       service &&
       valueProposition
     );
+
+    // Get existing profile to preserve passwords if not updating
+    const existingProfile = await prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { 
+        smtpPassword: true,
+        imapPassword: true,
+      },
+    });
 
     const profile = await prisma.userProfile.upsert({
       where: { userId: session.user.id },
@@ -73,6 +125,18 @@ export async function POST(request: NextRequest) {
         service,
         targetAudience,
         valueProposition,
+        companyEmail,
+        smtpHost,
+        smtpPort: parseInt(smtpPort) || 587,
+        smtpSecure: smtpSecure === 'true' || smtpSecure === true,
+        smtpUser,
+        smtpPassword: encryptedSmtpPassword || existingProfile?.smtpPassword, // Keep existing if not updating
+        smtpFrom,
+        imapHost,
+        imapPort: parseInt(imapPort) || 993,
+        imapSecure: imapSecure === 'true' || imapSecure === true,
+        imapUser,
+        imapPassword: encryptedImapPassword || existingProfile?.imapPassword, // Keep existing if not updating
         isComplete,
         updatedAt: new Date(),
       },
@@ -86,6 +150,18 @@ export async function POST(request: NextRequest) {
         service,
         targetAudience,
         valueProposition,
+        companyEmail,
+        smtpHost,
+        smtpPort: parseInt(smtpPort) || 587,
+        smtpSecure: smtpSecure === 'true' || smtpSecure === true,
+        smtpUser,
+        smtpPassword: encryptedSmtpPassword,
+        smtpFrom,
+        imapHost,
+        imapPort: parseInt(imapPort) || 993,
+        imapSecure: imapSecure === 'true' || imapSecure === true,
+        imapUser,
+        imapPassword: encryptedImapPassword,
         isComplete,
       },
     });

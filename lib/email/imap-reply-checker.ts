@@ -4,6 +4,7 @@ import Imap from 'imap';
 import { simpleParser } from 'mailparser';
 import { findEmailLogForReply, trackEmailReply } from '@/lib/email-logger';
 import { prisma } from '@/lib/prisma';
+import { decrypt } from '@/lib/encryption';
 
 interface ImapConfig {
   user: string;
@@ -26,15 +27,22 @@ interface ParsedEmail {
 
 export class ImapReplyChecker {
   private config: ImapConfig;
+  private userId?: string;
 
-  constructor() {
-    this.config = {
-      user: process.env.IMAP_USER || '',
-      password: process.env.IMAP_PASSWORD || '',
-      host: process.env.IMAP_HOST || 'imap.gmail.com',
-      port: parseInt(process.env.IMAP_PORT || '993'),
-      tls: process.env.IMAP_TLS !== 'false',
-    };
+  constructor(customConfig?: ImapConfig, userId?: string) {
+    if (customConfig) {
+      this.config = customConfig;
+      this.userId = userId;
+    } else {
+      // Fallback to environment variables
+      this.config = {
+        user: process.env.IMAP_USER || '',
+        password: process.env.IMAP_PASSWORD || '',
+        host: process.env.IMAP_HOST || 'imap.gmail.com',
+        port: parseInt(process.env.IMAP_PORT || '993'),
+        tls: process.env.IMAP_TLS !== 'false',
+      };
+    }
   }
 
   isConfigured(): boolean {
@@ -54,10 +62,27 @@ export class ImapReplyChecker {
         port: this.config.port,
         tls: this.config.tls,
         tlsOptions: { rejectUnauthorized: false },
+        authTimeout: 30000, // 30 seconds timeout
+        connTimeout: 30000, // 30 seconds connection timeout
       });
 
       let processed = 0;
       const errors: string[] = [];
+      let hasResolved = false;
+
+      // Set a safety timeout
+      const safetyTimeout = setTimeout(() => {
+        if (!hasResolved) {
+          hasResolved = true;
+          errors.push('Connection timeout - check your IMAP settings');
+          try {
+            imap.end();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          resolve({ processed, errors });
+        }
+      }, 45000); // 45 seconds total timeout
 
       imap.once('ready', () => {
         imap.openBox('INBOX', false, async (err: any, box: any) => {
@@ -67,10 +92,9 @@ export class ImapReplyChecker {
             return;
           }
 
-          // Search for unread emails or emails since a specific date
-          const searchCriteria = since
-            ? [['SINCE', since]]
-            : ['UNSEEN'];
+          // Search for emails since a specific date, or last 7 days if not specified
+          const searchDate = since || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          const searchCriteria = [['SINCE', searchDate]];
 
           imap.search(searchCriteria, (err: any, results: any) => {
             if (err) {
@@ -112,6 +136,7 @@ export class ImapReplyChecker {
 
             fetch.once('end', () => {
               console.log('Done fetching all messages');
+              clearTimeout(safetyTimeout);
               imap.end();
             });
           });
@@ -119,12 +144,33 @@ export class ImapReplyChecker {
       });
 
       imap.once('error', (err: any) => {
-        errors.push(`Connection error: ${err.message}`);
-        reject(new Error(`IMAP error: ${err.message}`));
+        clearTimeout(safetyTimeout);
+        if (!hasResolved) {
+          hasResolved = true;
+          const errorMsg = err.message || 'Unknown IMAP error';
+          console.error('[IMAP] Connection error:', errorMsg);
+          
+          // Provide helpful error messages
+          if (errorMsg.includes('Timed out') || errorMsg.includes('timeout')) {
+            errors.push('Connection timeout. Check: 1) IMAP host/port are correct, 2) Network allows IMAP connections, 3) Credentials are valid');
+          } else if (errorMsg.includes('authentication') || errorMsg.includes('login')) {
+            errors.push('Authentication failed. For Gmail, use an App Password (not your regular password). Enable IMAP in Gmail settings.');
+          } else if (errorMsg.includes('certificate') || errorMsg.includes('SSL') || errorMsg.includes('TLS')) {
+            errors.push('SSL/TLS error. Try: 1) Check IMAP port (usually 993 for SSL), 2) Verify host is correct');
+          } else {
+            errors.push(`Connection error: ${errorMsg}`);
+          }
+          
+          resolve({ processed, errors });
+        }
       });
 
       imap.once('end', () => {
-        resolve({ processed, errors });
+        clearTimeout(safetyTimeout);
+        if (!hasResolved) {
+          hasResolved = true;
+          resolve({ processed, errors });
+        }
       });
 
       imap.connect();
@@ -139,39 +185,69 @@ export class ImapReplyChecker {
     const html = parsed.html || '';
     const messageId = parsed.messageId || '';
     const inReplyTo = parsed.inReplyTo || '';
+    const date = parsed.date || new Date();
 
-    console.log(`Processing email from ${from} with subject: ${subject}`);
+    // Skip emails that are not replies
+    // Check for reply indicators: "Re:" prefix or inReplyTo header
+    const isReply = subject.toLowerCase().startsWith('re:') || 
+                    subject.toLowerCase().includes('re: ') ||
+                    inReplyTo;
+
+    if (!isReply) {
+      // Silently skip non-reply emails (notifications, newsletters, etc.)
+      return;
+    }
+
+    console.log(`Processing reply from ${from} with subject: ${subject}, date: ${date}`);
+    console.log(`  In-Reply-To header: ${inReplyTo || '(none)'}`);
 
     // Try to find the original email this is replying to
-    const originalLog = await findEmailLogForReply(from, subject);
+    // Pass In-Reply-To header for EXACT matching via Message-ID
+    const originalLog = await findEmailLogForReply(from, subject, this.userId, inReplyTo);
 
     if (!originalLog) {
-      console.log(`No matching original email found for reply from ${from}`);
+      console.log(`⚠️  No matching original email found for reply from ${from}`);
+      console.log(`   This reply will be skipped`);
       return;
     }
 
     console.log(`Found original email: ${originalLog.id}`);
 
-    // Track the reply
-    await trackEmailReply(originalLog.id, subject, text || html);
+    // Track the reply with the actual email date
+    await trackEmailReply(originalLog.id, subject, text || html, date);
 
-    // Create lead activity
+    // Create lead activity (use upsert to avoid duplicates based on messageId)
     if (originalLog.leadId) {
-      await prisma.leadActivity.create({
-        data: {
+      // Check if this reply already exists by messageId
+      const existingActivity = await prisma.leadActivity.findFirst({
+        where: {
           leadId: originalLog.leadId,
           activityType: 'EMAIL_REPLIED',
-          description: `Received email reply: ${subject}`,
           metadata: {
-            from,
-            subject,
-            preview: text?.substring(0, 200) || html?.substring(0, 200),
-            messageId,
-            inReplyTo,
+            path: ['messageId'],
+            equals: messageId,
           },
-          userId: originalLog.userId,
         },
       });
+
+      if (!existingActivity) {
+        await prisma.leadActivity.create({
+          data: {
+            leadId: originalLog.leadId,
+            activityType: 'EMAIL_REPLIED',
+            description: `Received email reply: ${subject}`,
+            metadata: {
+              from,
+              subject,
+              body: text || html, // Store FULL reply body
+              preview: text?.substring(0, 200) || html?.substring(0, 200), // Keep preview for list view
+              messageId,
+              inReplyTo,
+            },
+            userId: originalLog.userId,
+          },
+        });
+      }
 
       // Update lead status if it's still NEW or CONTACTED
       const lead = await prisma.lead.findUnique({
@@ -206,12 +282,47 @@ export class ImapReplyChecker {
   }
 }
 
-// Singleton instance
-let imapChecker: ImapReplyChecker | null = null;
+/**
+ * Get user's IMAP configuration from database
+ */
+export async function getUserImapConfig(userId: string): Promise<ImapConfig | null> {
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId },
+    select: {
+      imapHost: true,
+      imapPort: true,
+      imapSecure: true,
+      imapUser: true,
+      imapPassword: true,
+    },
+  });
 
-export function getImapReplyChecker(): ImapReplyChecker {
-  if (!imapChecker) {
-    imapChecker = new ImapReplyChecker();
+  if (!profile?.imapHost || !profile?.imapUser || !profile?.imapPassword) {
+    return null;
   }
-  return imapChecker;
+
+  return {
+    host: profile.imapHost,
+    port: profile.imapPort || 993,
+    tls: profile.imapSecure !== false,
+    user: profile.imapUser,
+    password: decrypt(profile.imapPassword),
+  };
+}
+
+/**
+ * Get IMAP reply checker for a specific user or use default config
+ */
+export async function getImapReplyChecker(userId?: string): Promise<ImapReplyChecker> {
+  if (userId) {
+    const userConfig = await getUserImapConfig(userId);
+    if (userConfig) {
+      console.log(`Using user's custom IMAP: ${userConfig.host}`);
+      return new ImapReplyChecker(userConfig, userId);
+    }
+  }
+
+  // Fallback to environment-based config
+  console.log('Using default IMAP from environment');
+  return new ImapReplyChecker();
 }

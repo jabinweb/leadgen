@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to find the original email this is replying to
-    const originalLog = await findEmailLogForReply(from, subject);
+    // Pass In-Reply-To header for precise matching via Message-ID
+    const originalLog = await findEmailLogForReply(from, subject, undefined, inReplyTo);
 
     if (originalLog) {
       console.log('✅ Found original email log:', originalLog.id);

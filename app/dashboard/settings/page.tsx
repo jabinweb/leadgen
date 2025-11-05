@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { 
   Select, 
   SelectContent, 
@@ -14,10 +16,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Building, Save, Loader2 } from 'lucide-react';
+import { Building, Save, Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     companyName: '',
@@ -82,8 +85,14 @@ export default function SettingsPage() {
     updateProfileMutation.mutate(formData);
   };
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field: string, value: string | boolean | number) => {
+    if (field === 'smtpPort') {
+      setFormData(prev => ({ ...prev, [field]: parseInt(value as string) || 587 }));
+    } else if (field === 'smtpSecure' || field === 'useAdminEmail') {
+      setFormData(prev => ({ ...prev, [field]: value === 'true' || value === true }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
+    }
   };
 
   if (isLoading) {

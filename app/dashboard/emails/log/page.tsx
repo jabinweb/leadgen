@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Label as FormLabel } from '@/components/ui/label';
+import { toast } from 'sonner';
 import { 
   Table, 
   TableBody, 
@@ -45,7 +47,8 @@ import {
   Clock,
   Send,
   MoreVertical,
-  Filter
+  Filter,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,6 +57,7 @@ interface EmailLog {
   id: string;
   to: string;
   subject: string;
+  body?: string;
   status: 'SENT' | 'FAILED' | 'PENDING' | 'DELIVERED' | 'OPENED' | 'CLICKED' | 'BOUNCED' | 'REPLIED';
   sentAt?: Date;
   deliveredAt?: Date;
@@ -86,11 +90,13 @@ const statusConfig = {
 };
 
 export default function EmailLogPage() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [selectedEmail, setSelectedEmail] = useState<EmailLog | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const limit = 20;
 
   const { data, isLoading, error } = useQuery({
@@ -114,6 +120,45 @@ export default function EmailLogPage() {
   const handleViewDetails = (email: EmailLog) => {
     setSelectedEmail(email);
     setShowDetailsDialog(true);
+  };
+
+  const handleResend = async (email: EmailLog) => {
+    setResendingId(email.id);
+    try {
+      const response = await fetch('/api/emails/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: email.to,
+          subject: email.subject,
+          body: email.body || '',
+          leadId: email.leadId,
+          campaignId: email.campaignId,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to resend email';
+        try {
+          const error = await response.json();
+          errorMessage = error.error || error.message || error.details || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.statusText || response.status}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      toast.success(`Email resent to ${email.to}`);
+      
+      // Refresh the email logs
+      queryClient.invalidateQueries({ queryKey: ['email-logs'] });
+    } catch (error: any) {
+      console.error('Error resending email:', error);
+      toast.error(error.message || 'Failed to resend email');
+    } finally {
+      setResendingId(null);
+    }
   };
 
   const getStatusBadge = (status: EmailLog['status']) => {
@@ -339,6 +384,14 @@ export default function EmailLogPage() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => handleResend(email)}
+                                disabled={resendingId === email.id}
+                              >
+                                <RefreshCw className={`mr-2 h-4 w-4 ${resendingId === email.id ? 'animate-spin' : ''}`} />
+                                {resendingId === email.id ? 'Resending...' : 'Resend Email'}
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -395,23 +448,23 @@ export default function EmailLogPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                  <FormLabel className="text-sm font-medium text-muted-foreground">Status</FormLabel>
                   <div className="mt-1">{getStatusBadge(selectedEmail.status)}</div>
                 </div>
                 
                 <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Recipient</Label>
+                  <FormLabel className="text-sm font-medium text-muted-foreground">Recipient</FormLabel>
                   <div className="mt-1 text-sm">{selectedEmail.to}</div>
                 </div>
                 
                 <div className="col-span-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Subject</Label>
+                  <FormLabel className="text-sm font-medium text-muted-foreground">Subject</FormLabel>
                   <div className="mt-1 text-sm">{selectedEmail.subject}</div>
                 </div>
                 
                 {selectedEmail.lead && (
                   <div className="col-span-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Lead</Label>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Lead</FormLabel>
                     <div className="mt-1 text-sm">
                       <div className="font-medium">{selectedEmail.lead.companyName}</div>
                       {selectedEmail.lead.contactName && (
@@ -423,7 +476,7 @@ export default function EmailLogPage() {
                 
                 {selectedEmail.campaign && (
                   <div className="col-span-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Campaign</Label>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign</FormLabel>
                     <div className="mt-1 text-sm">{selectedEmail.campaign.name}</div>
                   </div>
                 )}

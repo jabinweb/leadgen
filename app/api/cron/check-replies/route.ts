@@ -24,7 +24,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const checker = getImapReplyChecker();
+    // Note: Using default IMAP config since cron doesn't have user context
+    const checker = await getImapReplyChecker();
 
     if (!checker.isConfigured()) {
       return NextResponse.json(

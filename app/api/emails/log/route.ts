@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const [logs, total] = await Promise.all([
       prisma.emailLog.findMany({
         where,
-        orderBy: { sentAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
         include: {
@@ -41,6 +41,19 @@ export async function GET(request: NextRequest) {
             select: {
               companyName: true,
               contactName: true,
+              activities: {
+                where: {
+                  activityType: 'EMAIL_REPLIED',
+                },
+                select: {
+                  id: true,
+                  metadata: true,
+                  createdAt: true,
+                },
+                orderBy: {
+                  createdAt: 'desc',
+                },
+              },
             },
           },
           campaign: {
@@ -52,6 +65,76 @@ export async function GET(request: NextRequest) {
       }),
       prisma.emailLog.count({ where }),
     ]);
+
+    // Enhance logs with reply information
+    const enhancedLogs = logs.map((log: any) => {
+      const replies = log.lead?.activities || [];
+      
+      // Debug logging
+      if (log.subject.includes('Lead Generation Strategies')) {
+        console.log(`[API Debug] Email "${log.subject}":`, {
+          hasLead: !!log.lead,
+          leadId: log.leadId,
+          messageId: log.messageId,
+          totalActivities: replies.length,
+          replySubjects: replies.slice(0, 3).map((r: any) => (r.metadata as any)?.subject),
+        });
+      }
+      
+      // Filter replies for this email
+      // Since Gmail may change Message-IDs, we match by:
+      // 1. Subject contains the original subject (for Re: replies)
+      // 2. OR inReplyTo matches our messageId (for exact matches)
+      const normalizedSubject = log.subject.toLowerCase().trim();
+      const emailReplies = replies.filter((activity: any) => {
+        const metadata = activity.metadata as any;
+        if (!metadata) return false;
+        
+        // Try exact Message-ID match first
+        if (log.messageId && metadata.inReplyTo === log.messageId) {
+          return true;
+        }
+        
+        // Fall back to subject matching (handle "Re: " prefix)
+        const replySubject = (metadata.subject || '').toLowerCase().trim();
+        const cleanReplySubject = replySubject.replace(/^re:\s*/i, '');
+        return cleanReplySubject === normalizedSubject;
+      });
+
+      const replyCount = emailReplies.length;
+      const newReplyCount = emailReplies.filter((activity: any) => {
+        const metadata = activity.metadata as any;
+        return !metadata?.viewedAt;
+      }).length;
+
+      const latestReply = emailReplies[0] ? {
+        from: (emailReplies[0].metadata as any)?.from || log.to,
+        body: (emailReplies[0].metadata as any)?.body || (emailReplies[0].metadata as any)?.preview || '',
+        sentAt: emailReplies[0].createdAt,
+        isNew: !(emailReplies[0].metadata as any)?.viewedAt,
+      } : null;
+
+      // Debug logging
+      if (log.subject.includes('Lead Generation Strategies')) {
+        console.log(`[API Debug] Reply counts:`, {
+          emailReplies: emailReplies.length,
+          replyCount,
+          newReplyCount,
+          hasLatestReply: !!latestReply,
+        });
+      }
+
+      return {
+        ...log,
+        lead: log.lead ? {
+          companyName: log.lead.companyName,
+          contactName: log.lead.contactName,
+        } : null,
+        replyCount,
+        newReplyCount,
+        latestReply,
+      };
+    });
 
     // Calculate stats
     const allLogs = await prisma.emailLog.findMany({
@@ -87,7 +170,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      logs,
+      logs: enhancedLogs,
       stats,
       pagination: {
         page,

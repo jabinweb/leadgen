@@ -128,14 +128,39 @@ export async function trackEmailClick(logId: string) {
 export async function trackEmailReply(
   logId: string,
   replySubject: string,
-  replyBody: string
+  replyBody: string,
+  replyDate?: Date
 ) {
   try {
+    // Get the current log to check if we already have a reply
+    const existingLog = await prisma.emailLog.findUnique({
+      where: { id: logId },
+      select: { repliedAt: true, replyBody: true },
+    });
+
+    // If we already have a reply, check if the new one is different/newer
+    if (existingLog?.repliedAt) {
+      const newReplyDate = replyDate || new Date();
+      
+      // Only update if:
+      // 1. The new reply date is newer, OR
+      // 2. The reply content is different (indicating a new reply in the thread)
+      const isNewer = newReplyDate > existingLog.repliedAt;
+      const isDifferent = existingLog.replyBody !== replyBody;
+      
+      if (!isNewer && !isDifferent) {
+        console.log(`Reply already tracked for ${logId}, skipping duplicate`);
+        return existingLog as any;
+      }
+      
+      console.log(`Updating reply for ${logId} (newer: ${isNewer}, different: ${isDifferent})`);
+    }
+
     const log = await prisma.emailLog.update({
       where: { id: logId },
       data: {
         status: 'REPLIED',
-        repliedAt: new Date(),
+        repliedAt: replyDate || new Date(),
         replySubject,
         replyBody,
       },
@@ -149,18 +174,50 @@ export async function trackEmailReply(
 }
 
 /**
- * Find email log by recipient email and subject for reply matching
+ * Find email log by In-Reply-To header for PRECISE reply matching
+ * This is the correct way to match email replies using email threading standards
  */
 export async function findEmailLogForReply(
-  recipientEmail: string,
-  originalSubject: string,
-  userId?: string
+  replyFromEmail: string,
+  replySubject: string,
+  userId?: string,
+  inReplyTo?: string // The In-Reply-To header from the reply email
 ) {
   try {
-    // Try to find the original email by matching recipient and subject
+    // PRIORITY 1: If we have In-Reply-To header, use it for EXACT matching
+    // This is the most reliable method - it matches the Message-ID we sent
+    if (inReplyTo) {
+      console.log(`🎯 Using In-Reply-To header for exact matching: ${inReplyTo}`);
+      
+      const where: any = {
+        messageId: inReplyTo, // Match our sent email's Message-ID with reply's In-Reply-To
+        to: replyFromEmail, // Verify it's the right recipient
+      };
+      
+      if (userId) {
+        where.userId = userId;
+      }
+      
+      const exactMatch = await prisma.emailLog.findFirst({
+        where,
+        orderBy: { sentAt: 'desc' },
+      });
+      
+      if (exactMatch) {
+        console.log(`✅ EXACT MATCH found via Message-ID: ${exactMatch.subject}`);
+        return exactMatch;
+      }
+      
+      console.log(`⚠️  No email found with Message-ID: ${inReplyTo}`);
+    }
+    
+    // PRIORITY 2: Fallback to subject matching only if no In-Reply-To header
+    // This is less reliable but handles edge cases where headers are missing
+    console.log(`📧 Falling back to subject matching for: ${replySubject}`);
+    
     const where: any = {
-      to: recipientEmail,
-      status: { in: ['SENT', 'DELIVERED', 'OPENED', 'CLICKED'] },
+      to: replyFromEmail,
+      status: { in: ['SENT', 'DELIVERED', 'OPENED', 'CLICKED', 'REPLIED'] },
     };
     
     if (userId) {
@@ -177,19 +234,62 @@ export async function findEmailLogForReply(
       orderBy: { sentAt: 'desc' },
       take: 10,
     });
+
+    if (logs.length === 0) {
+      console.log(`❌ No sent emails found to: ${replyFromEmail}`);
+      return null;
+    }
     
     // Try to match by subject (removing Re:, Fwd:, etc.)
-    const cleanSubject = originalSubject
-      .replace(/^(re:|fwd?:|fw:)/i, '')
+    const cleanSubject = replySubject
+      .replace(/^(re:|fwd?:|fw:)\s*/i, '')
       .trim()
       .toLowerCase();
     
-    const matchedLog = logs.find((log) =>
-      log.subject.toLowerCase().includes(cleanSubject) ||
-      cleanSubject.includes(log.subject.toLowerCase())
-    );
+    // EXACT subject match
+    const exactMatch = logs.find((log) => {
+      const logSubject = log.subject.toLowerCase().trim();
+      return cleanSubject === logSubject;
+    });
     
-    return matchedLog || logs[0]; // Return best match or most recent
+    if (exactMatch) {
+      console.log(`✅ EXACT subject match found: ${exactMatch.subject}`);
+      return exactMatch;
+    }
+    
+    // High similarity match (90%+)
+    const matchedLog = logs.find((log) => {
+      const logSubject = log.subject.toLowerCase().trim();
+      
+      const cleanWords = cleanSubject.split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'for', 'with'].includes(w));
+      const logWords = logSubject.split(/\s+/).filter(w => w.length > 2 && !['the', 'and', 'for', 'with'].includes(w));
+      
+      if (cleanWords.length === 0 || logWords.length === 0) return false;
+      
+      const matchingWords = cleanWords.filter(word => logWords.some(logWord => 
+        logWord.includes(word) || word.includes(logWord)
+      ));
+      
+      const similarity = matchingWords.length / Math.min(cleanWords.length, logWords.length);
+      
+      if (similarity >= 0.9) {
+        console.log(`✅ High-similarity match (${(similarity * 100).toFixed(0)}%): "${logSubject}"`);
+        return true;
+      }
+      
+      return false;
+    });
+    
+    if (matchedLog) {
+      return matchedLog;
+    }
+    
+    // NO MATCH - Don't force it to any email
+    console.warn(`⚠️  No good subject match found for reply: "${replySubject}"`);
+    console.warn(`   Candidate subjects: ${logs.map(l => `"${l.subject}"`).join(', ')}`);
+    console.warn(`   SKIPPING this reply - it belongs to an email not in our system`);
+    
+    return null; // Don't force wrong matches
   } catch (error) {
     console.error('Error finding email log for reply:', error);
     throw error;

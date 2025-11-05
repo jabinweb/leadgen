@@ -37,14 +37,52 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
   const [currentDraftIndex, setCurrentDraftIndex] = useState(0);
   const [editedDrafts, setEditedDrafts] = useState<EmailDraft[]>(drafts);
   const [isSending, setIsSending] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
 
   // Update edited drafts when drafts prop changes
   useEffect(() => {
     if (drafts.length > 0) {
       setEditedDrafts(drafts);
       setCurrentDraftIndex(0);
+      setAutoSaved(false);
     }
   }, [drafts]);
+
+  // Auto-save drafts when modal opens
+  useEffect(() => {
+    if (open && drafts.length > 0 && !autoSaved) {
+      console.log('Auto-saving drafts on modal open:', drafts.length);
+      
+      // Auto-save all drafts in the background
+      const autoSave = async () => {
+        try {
+          const savePromises = drafts.map(draft =>
+            fetch('/api/emails/drafts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                leadId: draft.leadId,
+                companyName: draft.companyName,
+                recipientEmail: draft.recipientEmail,
+                contactName: draft.contactName,
+                subject: draft.subject,
+                emailBody: draft.body,
+                tone: draft.tone,
+              }),
+            })
+          );
+
+          await Promise.all(savePromises);
+          console.log(`Auto-saved ${drafts.length} drafts`);
+          setAutoSaved(true);
+        } catch (error) {
+          console.error('Error auto-saving drafts:', error);
+        }
+      };
+
+      autoSave();
+    }
+  }, [open, drafts, autoSaved]);
 
   const currentDraft = editedDrafts[currentDraftIndex];
 
@@ -62,6 +100,8 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
 
   const handleSaveDraft = async () => {
     try {
+      console.log('Saving draft:', currentDraft);
+      
       const response = await fetch('/api/emails/drafts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -77,18 +117,26 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save draft');
+        const error = await response.json();
+        console.error('Save draft error:', error);
+        throw new Error(error.error || 'Failed to save draft');
       }
 
+      const result = await response.json();
+      console.log('Draft saved:', result);
+      
       toast.success('Draft saved successfully');
       onClose();
-    } catch (error) {
-      toast.error('Failed to save draft');
+    } catch (error: any) {
+      console.error('Error saving draft:', error);
+      toast.error(error.message || 'Failed to save draft');
     }
   };
 
   const handleSaveAllDrafts = async () => {
     try {
+      console.log('Saving all drafts:', editedDrafts);
+      
       const savePromises = editedDrafts.map(draft =>
         fetch('/api/emails/drafts', {
           method: 'POST',
@@ -108,13 +156,17 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
       const results = await Promise.all(savePromises);
       
       if (results.some(r => !r.ok)) {
+        const errors = await Promise.all(results.map(r => r.ok ? null : r.json()));
+        console.error('Some drafts failed:', errors);
         throw new Error('Some drafts failed to save');
       }
 
+      console.log('All drafts saved successfully');
       toast.success(`${editedDrafts.length} drafts saved successfully`);
       onClose();
-    } catch (error) {
-      toast.error('Failed to save all drafts');
+    } catch (error: any) {
+      console.error('Error saving drafts:', error);
+      toast.error(error.message || 'Failed to save all drafts');
     }
   };
 
@@ -126,7 +178,36 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
 
     setIsSending(true);
     try {
-      // TODO: Implement email sending
+      console.log('Sending email to:', currentDraft.recipientEmail);
+      
+      const response = await fetch('/api/emails/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: currentDraft.recipientEmail,
+          subject: currentDraft.subject,
+          body: currentDraft.body,
+          leadId: currentDraft.leadId,
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to send email';
+        try {
+          const error = await response.json();
+          console.error('Send email error:', error);
+          errorMessage = error.error || error.message || error.details || errorMessage;
+        } catch (jsonError) {
+          // If response is not JSON, use status text
+          console.error('Non-JSON error response:', response.statusText);
+          errorMessage = `Server error: ${response.statusText || response.status}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Email sent:', result);
+      
       toast.success(`Email sent to ${currentDraft.companyName}`);
       
       // Move to next draft or close if last one
@@ -135,8 +216,9 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
       } else {
         onClose();
       }
-    } catch (error) {
-      toast.error('Failed to send email');
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      toast.error(error.message || 'Failed to send email');
     } finally {
       setIsSending(false);
     }
@@ -145,11 +227,60 @@ export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps)
   const handleSendAll = async () => {
     setIsSending(true);
     try {
-      // TODO: Implement bulk send
-      toast.success(`Sending ${editedDrafts.length} emails...`);
+      console.log('Sending all emails:', editedDrafts.length);
+      
+      const sendPromises = editedDrafts
+        .filter(draft => draft.recipientEmail) // Only send to drafts with email
+        .map(async (draft) => {
+          try {
+            const response = await fetch('/api/emails/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: draft.recipientEmail,
+                subject: draft.subject,
+                body: draft.body,
+                leadId: draft.leadId,
+              }),
+            });
+            
+            if (!response.ok) {
+              let errorMessage = 'Failed to send';
+              try {
+                const error = await response.json();
+                errorMessage = error.error || error.message || errorMessage;
+              } catch {
+                errorMessage = `Error ${response.status}`;
+              }
+              console.error(`Failed to send to ${draft.recipientEmail}:`, errorMessage);
+              return { success: false, email: draft.recipientEmail, error: errorMessage };
+            }
+            
+            return { success: true, email: draft.recipientEmail };
+          } catch (error: any) {
+            console.error(`Failed to send to ${draft.recipientEmail}:`, error);
+            return { success: false, email: draft.recipientEmail, error: error.message };
+          }
+        });
+
+      const results = await Promise.all(sendPromises);
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+      
+      console.log(`Sent ${successCount} emails, ${failCount} failed`);
+      
+      if (failCount > 0) {
+        const failedEmails = results.filter(r => !r.success);
+        console.error('Failed emails:', failedEmails);
+        toast.warning(`Sent ${successCount} emails, ${failCount} failed. Check console for details.`);
+      } else {
+        toast.success(`Sent ${successCount} emails successfully`);
+      }
+      
       onClose();
-    } catch (error) {
-      toast.error('Failed to send emails');
+    } catch (error: any) {
+      console.error('Error sending emails:', error);
+      toast.error(error.message || 'Failed to send emails');
     } finally {
       setIsSending(false);
     }
