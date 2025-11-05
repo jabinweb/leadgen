@@ -1,0 +1,290 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Mail, Send, Save, X } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface EmailDraft {
+  leadId: string;
+  companyName: string;
+  recipientEmail?: string;
+  contactName?: string;
+  subject: string;
+  body: string;
+  tone: string;
+}
+
+interface EmailDraftModalProps {
+  open: boolean;
+  onClose: () => void;
+  drafts: EmailDraft[];
+}
+
+export function EmailDraftModal({ open, onClose, drafts }: EmailDraftModalProps) {
+  const [currentDraftIndex, setCurrentDraftIndex] = useState(0);
+  const [editedDrafts, setEditedDrafts] = useState<EmailDraft[]>(drafts);
+  const [isSending, setIsSending] = useState(false);
+
+  // Update edited drafts when drafts prop changes
+  useEffect(() => {
+    if (drafts.length > 0) {
+      setEditedDrafts(drafts);
+      setCurrentDraftIndex(0);
+    }
+  }, [drafts]);
+
+  const currentDraft = editedDrafts[currentDraftIndex];
+
+  const handleSubjectChange = (value: string) => {
+    const updated = [...editedDrafts];
+    updated[currentDraftIndex].subject = value;
+    setEditedDrafts(updated);
+  };
+
+  const handleBodyChange = (value: string) => {
+    const updated = [...editedDrafts];
+    updated[currentDraftIndex].body = value;
+    setEditedDrafts(updated);
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      const response = await fetch('/api/emails/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          leadId: currentDraft.leadId,
+          companyName: currentDraft.companyName,
+          recipientEmail: currentDraft.recipientEmail,
+          contactName: currentDraft.contactName,
+          subject: currentDraft.subject,
+          emailBody: currentDraft.body,
+          tone: currentDraft.tone,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save draft');
+      }
+
+      toast.success('Draft saved successfully');
+      onClose();
+    } catch (error) {
+      toast.error('Failed to save draft');
+    }
+  };
+
+  const handleSaveAllDrafts = async () => {
+    try {
+      const savePromises = editedDrafts.map(draft =>
+        fetch('/api/emails/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leadId: draft.leadId,
+            companyName: draft.companyName,
+            recipientEmail: draft.recipientEmail,
+            contactName: draft.contactName,
+            subject: draft.subject,
+            emailBody: draft.body,
+            tone: draft.tone,
+          }),
+        })
+      );
+
+      const results = await Promise.all(savePromises);
+      
+      if (results.some(r => !r.ok)) {
+        throw new Error('Some drafts failed to save');
+      }
+
+      toast.success(`${editedDrafts.length} drafts saved successfully`);
+      onClose();
+    } catch (error) {
+      toast.error('Failed to save all drafts');
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!currentDraft.recipientEmail) {
+      toast.error('No email address found for this lead');
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      // TODO: Implement email sending
+      toast.success(`Email sent to ${currentDraft.companyName}`);
+      
+      // Move to next draft or close if last one
+      if (currentDraftIndex < editedDrafts.length - 1) {
+        setCurrentDraftIndex(currentDraftIndex + 1);
+      } else {
+        onClose();
+      }
+    } catch (error) {
+      toast.error('Failed to send email');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleSendAll = async () => {
+    setIsSending(true);
+    try {
+      // TODO: Implement bulk send
+      toast.success(`Sending ${editedDrafts.length} emails...`);
+      onClose();
+    } catch (error) {
+      toast.error('Failed to send emails');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (!currentDraft) {
+    return null;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <Mail className="h-5 w-5" />
+            <span>Email Draft Preview</span>
+          </DialogTitle>
+          <DialogDescription>
+            {editedDrafts.length > 1 
+              ? `Reviewing email ${currentDraftIndex + 1} of ${editedDrafts.length}`
+              : 'Review and edit your email before sending'
+            }
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Lead Info */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Recipient</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div>
+                <span className="text-sm font-semibold">{currentDraft.companyName}</span>
+                {currentDraft.contactName && (
+                  <span className="text-sm text-muted-foreground ml-2">
+                    ({currentDraft.contactName})
+                  </span>
+                )}
+              </div>
+              {currentDraft.recipientEmail ? (
+                <div className="text-sm text-blue-600">{currentDraft.recipientEmail}</div>
+              ) : (
+                <div className="text-sm text-red-500">⚠️ No email address available</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Email Content */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                value={currentDraft.subject}
+                onChange={(e) => handleSubjectChange(e.target.value)}
+                placeholder="Email subject"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="body">Message</Label>
+              <Textarea
+                id="body"
+                value={currentDraft.body}
+                onChange={(e) => handleBodyChange(e.target.value)}
+                placeholder="Email body"
+                rows={12}
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Navigation for multiple drafts */}
+          {editedDrafts.length > 1 && (
+            <div className="flex items-center justify-between border-t pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentDraftIndex(Math.max(0, currentDraftIndex - 1))}
+                disabled={currentDraftIndex === 0}
+              >
+                ← Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {currentDraftIndex + 1} / {editedDrafts.length}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentDraftIndex(Math.min(editedDrafts.length - 1, currentDraftIndex + 1))}
+                disabled={currentDraftIndex === editedDrafts.length - 1}
+              >
+                Next →
+              </Button>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-between border-t pt-4">
+            <Button variant="outline" onClick={onClose}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <div className="flex space-x-2">
+              {editedDrafts.length > 1 ? (
+                <>
+                  <Button variant="outline" onClick={handleSaveAllDrafts}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save All ({editedDrafts.length})
+                  </Button>
+                  <Button onClick={handleSendAll} disabled={isSending}>
+                    <Send className="h-4 w-4 mr-2" />
+                    {isSending ? 'Sending...' : `Send All (${editedDrafts.length})`}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={handleSaveDraft}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Draft
+                  </Button>
+                  <Button 
+                    onClick={handleSendEmail} 
+                    disabled={isSending || !currentDraft.recipientEmail}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    {isSending ? 'Sending...' : 'Send Email'}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

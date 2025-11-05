@@ -1,0 +1,485 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id              String           @id @default(cuid())
+  name            String?
+  email           String           @unique
+  emailVerified   DateTime?
+  image           String?
+  role            String           @default("user")
+  accounts        Account[]
+  sessions        Session[]
+  scrapingJobs    ScrapingJob[]
+  leads           Lead[]
+  emailCampaigns  EmailCampaign[]
+  emailTemplates  EmailTemplate[]
+  emailDrafts     EmailDraft[]
+  leadActivities  LeadActivity[]
+  profile         UserProfile?
+  subscription    Subscription?
+  usage           UsageTracking?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model UserProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  companyName       String?
+  industry          String?
+  companySize       String?
+  website           String?
+  description       String?  @db.Text
+  service           String?  @db.Text
+  targetAudience    String?
+  valueProposition  String?  @db.Text
+  isComplete        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Lead {
+  id              String      @id @default(cuid())
+  companyName     String
+  website         String?
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  state           String?
+  country         String?
+  zipCode         String?
+  latitude        Float?
+  longitude       Float?
+  industry        String?
+  employeeCount   Int?
+  revenue         String?
+  contactName     String?
+  jobTitle        String?
+  linkedinUrl     String?
+  twitterUrl      String?
+  facebookUrl     String?
+  instagramUrl    String?
+  rating          Float?
+  reviewCount     Int?
+  description     String?
+  source          String      // Where this lead was scraped from
+  sourceUrl       String?     // Original URL where data was found
+  scrapingJobId   String?
+  userId          String
+  status          LeadStatus  @default(NEW)
+  isVerified      Boolean     @default(false)
+  isEnriched      Boolean     @default(false)
+  tags            String[]    @default([])
+  notes           String?
+  lastContactedAt DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scrapingJob       ScrapingJob?       @relation(fields: [scrapingJobId], references: [id])
+  enrichmentData    LeadEnrichment?
+  emailCampaignLeads EmailCampaignLead[]
+  activities        LeadActivity[]
+
+  @@index([companyName])
+  @@index([industry])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  RESPONDED
+  QUALIFIED
+  CONVERTED
+  LOST
+  UNSUBSCRIBED
+}
+
+model LeadEnrichment {
+  id                String   @id @default(cuid())
+  leadId            String   @unique
+  companySize       String?
+  yearFounded       Int?
+  technologies      String[] @default([])
+  socialProfiles    Json?    // Store multiple social media profiles
+  businessHours     Json?
+  additionalEmails  String[] @default([])
+  additionalPhones  String[] @default([])
+  enrichedAt        DateTime @default(now())
+  
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model EmailCampaign {
+  id              String             @id @default(cuid())
+  name            String
+  subject         String
+  emailTemplate   String             @db.Text
+  fromName        String
+  fromEmail       String
+  replyTo         String?
+  status          CampaignStatus     @default(DRAFT)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  userId          String
+  totalRecipients Int                @default(0)
+  sentCount       Int                @default(0)
+  openCount       Int                @default(0)
+  clickCount      Int                @default(0)
+  replyCount      Int                @default(0)
+  bounceCount     Int                @default(0)
+  unsubscribeCount Int               @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailCampaignLeads  EmailCampaignLead[]
+  emailEvents         EmailEvent[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  CANCELLED
+}
+
+model EmailCampaignLead {
+  id              String              @id @default(cuid())
+  campaignId      String
+  leadId          String
+  status          EmailLeadStatus     @default(PENDING)
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  repliedAt       DateTime?
+  bouncedAt       DateTime?
+  unsubscribedAt  DateTime?
+  errorMessage    String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+  @@index([leadId])
+  @@index([status])
+}
+
+enum EmailLeadStatus {
+  PENDING
+  SENT
+  OPENED
+  CLICKED
+  REPLIED
+  BOUNCED
+  UNSUBSCRIBED
+  FAILED
+}
+
+model EmailEvent {
+  id          String          @id @default(cuid())
+  campaignId  String
+  leadEmail   String
+  eventType   EmailEventType
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime        @default(now())
+
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([leadEmail])
+  @@index([eventType])
+}
+
+enum EmailEventType {
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  UNSUBSCRIBED
+  REPLIED
+}
+
+model LeadActivity {
+  id          String       @id @default(cuid())
+  leadId      String
+  activityType ActivityType
+  description String
+  metadata    Json?
+  userId      String?
+  createdAt   DateTime     @default(now())
+
+  lead Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+enum ActivityType {
+  CREATED
+  STATUS_CHANGED
+  EMAIL_SENT
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_REPLIED
+  NOTE_ADDED
+  TAG_ADDED
+  ENRICHED
+  CONTACTED
+}
+
+model EmailTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  body        String   @db.Text
+  variables   String[] @default([])
+  category    String?
+  userId      String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ScrapingJob {
+  id              String           @id @default(cuid())
+  name            String
+  targetWebsite   String
+  searchQuery     String?
+  maxResults      Int              @default(100)
+  status          ScrapingStatus   @default(PENDING)
+  progress        Int              @default(0)
+  totalFound      Int              @default(0)
+  successCount    Int              @default(0)
+  errorCount      Int              @default(0)
+  configuration   Json             // Store scraping configuration
+  userId          String
+  startedAt       DateTime?
+  completedAt     DateTime?
+  errorMessage    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads  Lead[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum ScrapingStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model ScrapingLog {
+  id            String   @id @default(cuid())
+  scrapingJobId String
+  level         LogLevel
+  message       String
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  @@index([scrapingJobId])
+  @@index([createdAt])
+}
+
+enum LogLevel {
+  INFO
+  WARNING
+  ERROR
+}
+
+model EmailDraft {
+  id              String       @id @default(cuid())
+  userId          String
+  leadId          String?
+  companyName     String
+  recipientEmail  String?
+  contactName     String?
+  subject         String
+  body            String       @db.Text
+  tone            String?
+  status          DraftStatus  @default(DRAFT)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum DraftStatus {
+  DRAFT
+  SENT
+}
+
+model Subscription {
+  id                    String             @id @default(cuid())
+  userId                String             @unique
+  planId                String
+  status                SubscriptionStatus @default(ACTIVE)
+  razorpaySubscriptionId String?          @unique
+  razorpayCustomerId    String?
+  currentPeriodStart    DateTime           @default(now())
+  currentPeriodEnd      DateTime
+  cancelAtPeriodEnd     Boolean            @default(false)
+  canceledAt            DateTime?
+  trialEndsAt           DateTime?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([razorpaySubscriptionId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  UNPAID
+}
+
+model Plan {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  displayName   String
+  description   String?
+  price         Int            // Price in paise (INR)
+  currency      String         @default("INR")
+  interval      String         // "month" or "year"
+  features      Json           // Array of features
+  maxLeads      Int            @default(20)
+  maxEmails     Int            @default(50)
+  maxCampaigns  Int            @default(5)
+  isActive      Boolean        @default(true)
+  stripePriceId String?        // For future Stripe integration
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([name])
+}
+
+model UsageTracking {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  leadsCreated      Int      @default(0)
+  emailsSent        Int      @default(0)
+  campaignsCreated  Int      @default(0)
+  lastResetAt       DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Payment {
+  id                  String        @id @default(cuid())
+  userId              String
+  amount              Int           // Amount in paise
+  currency            String        @default("INR")
+  status              PaymentStatus @default(PENDING)
+  razorpayPaymentId   String?       @unique
+  razorpayOrderId     String?
+  razorpaySignature   String?
+  planId              String?
+  description         String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([razorpayPaymentId])
+  @@index([status])
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  CAPTURED
+  REFUNDED
+  FAILED
+}
