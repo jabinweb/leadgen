@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Navbar } from '@/components/layout/navbar';
 import { Sidebar } from '@/components/layout/sidebar';
 import { UsageBanner } from '@/components/subscription/usage-banner';
+import { EmailReplyChecker } from '@/components/email/email-reply-checker';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -40,6 +41,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen">
       <Navbar />
+      <EmailReplyChecker />
       <div className="flex h-[calc(100vh-3.5rem)]">
         <aside className="sticky top-0 h-full overflow-y-auto border-r">
           <Sidebar />
