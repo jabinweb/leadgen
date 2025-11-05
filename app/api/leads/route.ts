@@ -77,9 +77,25 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
     
+    // Validate required fields
+    if (!data.companyName) {
+      return NextResponse.json({ error: 'Company name is required' }, { status: 400 });
+    }
+    
     const lead = await prisma.lead.create({
       data: {
-        ...data,
+        companyName: data.companyName,
+        contactName: data.contactName || null,
+        email: data.email || null,
+        phone: data.phone || null,
+        website: data.website || null,
+        address: data.address || null,
+        industry: data.industry || null,
+        jobTitle: data.jobTitle || null,
+        description: data.description || null,
+        source: data.source || 'Manual Entry',
+        sourceUrl: data.sourceUrl || '',
+        status: data.status || 'NEW',
         userId: session.user.id,
       },
     });

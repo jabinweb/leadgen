@@ -29,6 +29,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Download, 
   Search, 
@@ -38,7 +49,8 @@ import {
   Phone,
   Building,
   MapPin,
-  MoreVertical
+  MoreVertical,
+  Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -60,6 +72,19 @@ export default function LeadsPage() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailDrafts, setEmailDrafts] = useState<any[]>([]);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [showAddLeadDialog, setShowAddLeadDialog] = useState(false);
+  const [isAddingLead, setIsAddingLead] = useState(false);
+  const [newLead, setNewLead] = useState({
+    companyName: '',
+    contactName: '',
+    email: '',
+    phone: '',
+    website: '',
+    address: '',
+    industry: '',
+    jobTitle: '',
+    description: '',
+  });
   const limit = 10;
 
   const { data, isLoading, error } = useQuery({
@@ -215,6 +240,45 @@ export default function LeadsPage() {
     }
   };
 
+  const handleAddLead = async () => {
+    if (!newLead.companyName) {
+      toast.error('Company name is required');
+      return;
+    }
+
+    setIsAddingLead(true);
+    try {
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLead),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add lead');
+      }
+
+      toast.success('Lead added successfully!');
+      setShowAddLeadDialog(false);
+      setNewLead({
+        companyName: '',
+        contactName: '',
+        email: '',
+        phone: '',
+        website: '',
+        address: '',
+        industry: '',
+        jobTitle: '',
+        description: '',
+      });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    } catch (error) {
+      toast.error('Failed to add lead');
+    } finally {
+      setIsAddingLead(false);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-4">
       <div className="flex items-center justify-between space-y-2">
@@ -242,6 +306,10 @@ export default function LeadsPage() {
               </Button>
             </>
           )}
+          <Button onClick={() => setShowAddLeadDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Lead
+          </Button>
           <Button variant="outline" onClick={() => handleExport('csv')}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
@@ -511,6 +579,143 @@ export default function LeadsPage() {
         }}
         drafts={emailDrafts}
       />
+
+      {/* Add Lead Dialog */}
+      <Dialog open={showAddLeadDialog} onOpenChange={setShowAddLeadDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Lead</DialogTitle>
+            <DialogDescription>
+              Manually add a new lead to your database. Fill in as much information as you have.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="companyName">
+                Company Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="companyName"
+                placeholder="e.g., Acme Corporation"
+                value={newLead.companyName}
+                onChange={(e) => setNewLead({ ...newLead, companyName: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="contactName">Contact Name</Label>
+                <Input
+                  id="contactName"
+                  placeholder="e.g., John Doe"
+                  value={newLead.contactName}
+                  onChange={(e) => setNewLead({ ...newLead, contactName: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="jobTitle">Job Title</Label>
+                <Input
+                  id="jobTitle"
+                  placeholder="e.g., CEO"
+                  value={newLead.jobTitle}
+                  onChange={(e) => setNewLead({ ...newLead, jobTitle: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="e.g., contact@company.com"
+                  value={newLead.email}
+                  onChange={(e) => setNewLead({ ...newLead, email: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  placeholder="e.g., +1 234 567 8900"
+                  value={newLead.phone}
+                  onChange={(e) => setNewLead({ ...newLead, phone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                placeholder="e.g., https://company.com"
+                value={newLead.website}
+                onChange={(e) => setNewLead({ ...newLead, website: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                placeholder="e.g., Technology, Healthcare"
+                value={newLead.industry}
+                onChange={(e) => setNewLead({ ...newLead, industry: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                placeholder="e.g., 123 Main St, City, State"
+                value={newLead.address}
+                onChange={(e) => setNewLead({ ...newLead, address: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description / Notes</Label>
+              <Textarea
+                id="description"
+                placeholder="Add any additional notes or context about this lead..."
+                rows={3}
+                value={newLead.description}
+                onChange={(e) => setNewLead({ ...newLead, description: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddLeadDialog(false);
+                setNewLead({
+                  companyName: '',
+                  contactName: '',
+                  email: '',
+                  phone: '',
+                  website: '',
+                  address: '',
+                  industry: '',
+                  jobTitle: '',
+                  description: '',
+                });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddLead} disabled={isAddingLead || !newLead.companyName}>
+              {isAddingLead ? 'Adding...' : 'Add Lead'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
