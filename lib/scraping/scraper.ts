@@ -21,6 +21,11 @@ export interface ScrapingConfig {
     nextButton: string;
     hasNext: string;
   };
+  filters?: {
+    requireEmail?: boolean;
+    requirePhone?: boolean;
+    requireWebsite?: boolean;
+  };
 }
 
 export interface ScrapedLead {
@@ -47,15 +52,9 @@ export class WebScraper {
   private browser: Browser | null = null;
 
   async initialize() {
-    this.browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-dev-shm-usage',
-      ],
-    });
+    // Skip Playwright browser launch for production
+    // Use API-based scrapers only
+    console.log('Using API-based scrapers only (no browser required)');
   }
 
   async close() {
@@ -69,48 +68,62 @@ export class WebScraper {
     config: ScrapingConfig,
     userId: string
   ): Promise<void> {
-    if (!this.browser) {
-      await this.initialize();
-    }
-
-    const context = await this.browser!.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-      locale: 'en-US',
-    });
-    
-    const page = await context.newPage();
+    // Don't initialize browser - use API scrapers only
     const leads: ScrapedLead[] = [];
     
     try {
       await this.updateJobStatus(jobId, ScrapingStatus.RUNNING);
       
-      // Use API scrapers first (more reliable), fallback to web scraping
+      // Use API scrapers only (no browser scraping in production)
       if (config.platform === 'google-maps') {
-        // Try Google Places API first
+        console.log('🔍 Fetching leads from multiple sources to maximize results...');
+        
+        // Strategy: Combine leads from all available sources
+        const leadPromises: Promise<ScrapedLead[]>[] = [];
+        
+        // 1. Always try Google Places API first (real verified data)
+        console.log('📍 Fetching from Google Places API...');
         const googlePlaces = new GooglePlacesAPI();
-        try {
-          const apiLeads = await googlePlaces.searchBusinesses({
+        leadPromises.push(
+          googlePlaces.searchBusinesses({
             businessCategory: config.searchQuery || '',
             location: config.location || '',
             maxResults: config.maxResults,
-          });
-          
-          if (apiLeads.length > 0) {
-            leads.push(...apiLeads);
-          } else {
-            throw new Error('No results from API');
-          }
-        } catch (error) {
-          console.log('Google Places API unavailable, using web scraping');
-          const googleMaps = new GoogleMapsScraper();
-          const scrapedLeads = await googleMaps.scrape(page, {
-            searchQuery: config.searchQuery || '',
-            location: config.location,
-            maxResults: config.maxResults,
-          });
-          leads.push(...scrapedLeads);
-        }
+          }).catch(error => {
+            console.log('Google Places API error:', error.message);
+            return [];
+          })
+        );
+        
+        // 2. Also fetch from Gemini AI (generates emails and additional leads)
+        console.log('🤖 Fetching from Gemini AI...');
+        const gemini = new GeminiLeadsGenerator();
+        leadPromises.push(
+          gemini.generateLeads({
+            businessCategory: config.searchQuery || '',
+            location: config.location || '',
+            maxResults: Math.min(config.maxResults, 20), // Gemini has limits
+          }).catch(error => {
+            console.log('Gemini AI error:', error.message);
+            return [];
+          })
+        );
+        
+        // Wait for all sources to complete
+        const allLeads = await Promise.all(leadPromises);
+        
+        // Combine and deduplicate leads
+        const googleLeads = allLeads[0] || [];
+        const geminiLeads = allLeads[1] || [];
+        
+        console.log(`✅ Google Places: ${googleLeads.length} leads`);
+        console.log(`✅ Gemini AI: ${geminiLeads.length} leads`);
+        
+        // Add all leads (deduplication happens in saveLeads)
+        leads.push(...googleLeads);
+        leads.push(...geminiLeads);
+        
+        console.log(`📊 Total leads before filtering: ${leads.length}`);
         
       } else if (config.platform === 'yelp') {
         // Use Gemini AI to generate Yelp-style business leads
@@ -127,56 +140,18 @@ export class WebScraper {
           throw new Error('Failed to generate leads with Gemini AI');
         }
         
-      } else if (config.platform === 'facebook') {
-        const facebook = new FacebookScraper();
-        const fbLeads = await facebook.scrape(page, {
-          searchQuery: config.searchQuery || '',
-          maxResults: config.maxResults,
-          searchType: 'pages',
-        });
-        leads.push(...fbLeads);
-        
-      } else if (config.platform === 'instagram') {
-        const instagram = new InstagramScraper();
-        const igLeads = await instagram.scrape(page, {
-          searchQuery: config.searchQuery || '',
-          maxResults: config.maxResults,
-        });
-        leads.push(...igLeads);
+      } else if (config.platform === 'facebook' || config.platform === 'instagram') {
+        // Social media scraping not supported without browser
+        throw new Error('Social media scraping requires browser automation. Please use Google Maps or Yelp instead.');
         
       } else {
-        // Custom scraping logic
-        await page.goto(config.targetWebsite, { waitUntil: 'networkidle' });
-        
-        // Handle search if query provided
-        if (config.searchQuery) {
-          await this.performSearch(page, config.searchQuery);
-        }
-
-        let currentPage = 1;
-        let totalScraped = 0;
-
-        while (totalScraped < config.maxResults) {
-          const pageLeads = await this.extractLeadsFromPage(page, config);
-          leads.push(...pageLeads);
-          totalScraped += pageLeads.length;
-
-          await this.updateJobProgress(jobId, totalScraped, config.maxResults);
-
-          // Check if there's a next page
-          if (config.pagination && totalScraped < config.maxResults) {
-            const hasNext = await this.goToNextPage(page, config.pagination);
-            if (!hasNext) break;
-            currentPage++;
-          } else {
-            break;
-          }
-        }
+        // Custom scraping not supported without browser
+        throw new Error('Custom website scraping requires browser automation. Please use Google Maps or Yelp instead.');
       }
 
       // Save leads in batches
       if (leads.length > 0) {
-        await this.saveLeads(leads, jobId, userId);
+        await this.saveLeads(leads, jobId, userId, config.filters);
       }
 
       await this.updateJobProgress(jobId, leads.length, config.maxResults);
@@ -186,92 +161,81 @@ export class WebScraper {
       console.error('Scraping error:', error);
       await this.updateJobStatus(jobId, ScrapingStatus.FAILED, 0, error as Error);
       throw error;
-    } finally {
-      await page.close();
-      await context.close();
     }
   }
 
-  private async performSearch(page: Page, query: string) {
-    // Generic search implementation - can be customized per website
-    const searchSelector = 'input[type="search"], input[name*="search"], input[placeholder*="search"]';
-    await page.waitForSelector(searchSelector, { timeout: 5000 });
-    await page.fill(searchSelector, query);
-    await page.press(searchSelector, 'Enter');
-    await page.waitForLoadState('networkidle');
-  }
-
-  private async extractLeadsFromPage(page: Page, config: ScrapingConfig): Promise<ScrapedLead[]> {
-    const leads: ScrapedLead[] = [];
+  private async saveLeads(
+    leads: ScrapedLead[], 
+    jobId: string, 
+    userId: string,
+    filters?: { requireEmail?: boolean; requirePhone?: boolean; requireWebsite?: boolean }
+  ) {
+    console.log('Saving leads with filters:', filters);
+    console.log('Total leads to process:', leads.length);
     
-    // Wait for content to load
-    await page.waitForTimeout(2000);
+    let filteredCount = 0;
+    let savedCount = 0;
+    let duplicateCount = 0;
+    const seenInBatch = new Map<string, ScrapedLead>(); // Track duplicates within this batch
     
-    // Extract leads based on configuration
-    const leadElements = await page.$$eval('div[class*="result"], div[class*="listing"], div[class*="card"]', 
-      (elements) => elements.slice(0, 20)
-    );
-
-    for (let i = 0; i < leadElements.length; i++) {
-      try {
-        const lead: ScrapedLead = {
-          source: config.targetWebsite,
-          sourceUrl: page.url(),
-        };
-
-        // Extract data based on selectors
-        for (const [field, selector] of Object.entries(config.selectors)) {
-          try {
-            const element = await page.$(`div:nth-child(${i + 1}) ${selector}`);
-            if (element) {
-              const text = await element.textContent();
-              if (text && text.trim()) {
-                (lead as any)[field] = text.trim();
-              }
-            }
-          } catch (error) {
-            // Continue if selector fails
-          }
-        }
-
-        // Only add lead if it has at least company name or contact info
-        if (lead.companyName || lead.email || lead.phone) {
-          leads.push(lead);
-        }
-      } catch (error) {
-        console.error(`Error extracting lead ${i}:`, error);
-      }
-    }
-
-    return leads;
-  }
-
-  private async goToNextPage(page: Page, pagination: { nextButton: string; hasNext: string }): Promise<boolean> {
-    try {
-      const hasNext = await page.$(pagination.hasNext);
-      if (!hasNext) return false;
-
-      const nextButton = await page.$(pagination.nextButton);
-      if (!nextButton) return false;
-
-      await nextButton.click();
-      await page.waitForLoadState('networkidle');
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  private async saveLeads(leads: ScrapedLead[], jobId: string, userId: string) {
     for (const leadData of leads) {
       // Skip if missing required fields
       if (!leadData.companyName) continue;
       
-      // Check for duplicates
+      // Apply quality filters
+      if (filters?.requireEmail && !leadData.email) {
+        console.log(`Filtered out ${leadData.companyName} - missing email`);
+        filteredCount++;
+        continue;
+      }
+      if (filters?.requirePhone && !leadData.phone) {
+        console.log(`Filtered out ${leadData.companyName} - missing phone`);
+        filteredCount++;
+        continue;
+      }
+      if (filters?.requireWebsite && !leadData.website) {
+        console.log(`Filtered out ${leadData.companyName} - missing website`);
+        filteredCount++;
+        continue;
+      }
+      
+      // Create a unique key for deduplication (company name + location)
+      const dedupeKey = `${leadData.companyName.toLowerCase().trim()}_${(leadData.address || '').toLowerCase().trim()}`;
+      
+      // Check if we've seen this lead in the current batch (from multiple sources)
+      if (seenInBatch.has(dedupeKey)) {
+        const existing = seenInBatch.get(dedupeKey)!;
+        // Merge data - prefer data from Google Places (real data) over AI-generated
+        if (leadData.source === 'Google Places API' && existing.source !== 'Google Places API') {
+          // Replace AI data with real Google Places data
+          seenInBatch.set(dedupeKey, leadData);
+        } else if (existing.source !== 'Google Places API' && leadData.source !== 'Google Places API') {
+          // Both are AI-generated or both are Google Places, merge to fill gaps
+          seenInBatch.set(dedupeKey, {
+            ...existing,
+            email: existing.email || leadData.email,
+            phone: existing.phone || leadData.phone,
+            website: existing.website || leadData.website,
+            rating: existing.rating || leadData.rating,
+            reviewCount: existing.reviewCount || leadData.reviewCount,
+          });
+        }
+        duplicateCount++;
+        continue;
+      }
+      
+      seenInBatch.set(dedupeKey, leadData);
+    }
+    
+    console.log(`📊 After deduplication: ${seenInBatch.size} unique leads from ${leads.length} total`);
+    
+    // Now save the deduplicated leads
+    const uniqueLeads = Array.from(seenInBatch.values());
+    for (const leadData of uniqueLeads) {
+      // Check for duplicates in database
       const existing = await prisma.lead.findFirst({
         where: {
           companyName: leadData.companyName,
-          email: leadData.email,
           userId: userId,
         },
       });
@@ -279,7 +243,7 @@ export class WebScraper {
       if (!existing) {
         await prisma.lead.create({
           data: {
-            companyName: leadData.companyName,
+            companyName: leadData.companyName || '',
             website: leadData.website,
             email: leadData.email,
             phone: leadData.phone,
@@ -296,8 +260,13 @@ export class WebScraper {
             userId: userId,
           },
         });
+        savedCount++;
+      } else {
+        duplicateCount++;
       }
     }
+    
+    console.log(`✅ Summary - Saved: ${savedCount}, Duplicates: ${duplicateCount}, Filtered: ${filteredCount}`);
   }
 
   private async updateJobStatus(

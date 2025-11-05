@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Select, 
   SelectContent, 
@@ -26,6 +27,9 @@ const scrapingJobSchema = z.object({
   businessCategory: z.string().min(1, 'Business category is required'),
   location: z.string().min(1, 'Location is required'),
   maxResults: z.number().min(1).max(1000),
+  requireEmail: z.boolean().default(false),
+  requirePhone: z.boolean().default(false),
+  requireWebsite: z.boolean().default(false),
 });
 
 type ScrapingJobForm = z.infer<typeof scrapingJobSchema>;
@@ -58,10 +62,14 @@ export default function NewScrapingJobPage() {
     formState: { errors },
     setValue,
     watch,
+    control,
   } = useForm<ScrapingJobForm>({
     resolver: zodResolver(scrapingJobSchema),
     defaultValues: {
       maxResults: 100,
+      requireEmail: false,
+      requirePhone: false,
+      requireWebsite: false,
     },
   });
 
@@ -69,46 +77,42 @@ export default function NewScrapingJobPage() {
     setIsSubmitting(true);
 
     try {
-      // Create jobs for all platforms to maximize leads
-      const platforms = ['google-maps', 'yelp'];
-      const jobPromises = platforms.map(async (platform) => {
-        const platformName = platform === 'google-maps' ? 'Google Maps' : 'Yelp';
-        const configuration = {
-          platform,
-          searchQuery: data.businessCategory,
-          businessCategory: data.businessCategory,
-          location: data.location,
-          maxResults: Math.ceil(data.maxResults / platforms.length), // Split results across platforms
-        };
+      // Create single job with Google Maps (will fallback to Gemini AI if needed)
+      const platform = 'google-maps';
+      const configuration = {
+        platform,
+        searchQuery: data.businessCategory,
+        businessCategory: data.businessCategory,
+        location: data.location,
+        maxResults: data.maxResults,
+        filters: {
+          requireEmail: data.requireEmail,
+          requirePhone: data.requirePhone,
+          requireWebsite: data.requireWebsite,
+        },
+      };
 
-        return fetch('/api/scraping/jobs', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: `${data.businessCategory} in ${data.location} - ${platformName}`,
-            targetWebsite: platform,
-            searchQuery: data.businessCategory,
-            maxResults: configuration.maxResults,
-            configuration,
-          }),
-        });
+      console.log('Creating job with filters:', configuration.filters);
+
+      const response = await fetch('/api/scraping/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${data.businessCategory} in ${data.location}`,
+          targetWebsite: platform,
+          searchQuery: data.businessCategory,
+          maxResults: configuration.maxResults,
+          configuration,
+        }),
       });
 
-      const responses = await Promise.all(jobPromises);
-      const failedJobs = responses.filter(r => !r.ok);
-      
-      if (failedJobs.length === responses.length) {
-        throw new Error('All scraping jobs failed to create');
+      if (!response.ok) {
+        throw new Error('Failed to create scraping job');
       }
 
-      if (failedJobs.length > 0) {
-        toast.success(`Created ${responses.length - failedJobs.length}/${responses.length} scraping jobs`);
-      } else {
-        toast.success(`Created ${responses.length} scraping jobs across all platforms!`);
-      }
-
+      toast.success('Scraping job created successfully!');
       router.push('/dashboard/scraping');
     } catch (error) {
       toast.error('Failed to create scraping job');
@@ -145,12 +149,10 @@ export default function NewScrapingJobPage() {
             </div>
 
             <Alert>
-              <AlertDescription>
-                🚀 Leads will be automatically collected from all available platforms (Google Maps, Yelp) to maximize results!
+              <AlertDescription className="text-sm">
+                🚀 Leads will be automatically collected from multiple sources (Google Places API + AI) to maximize results and provide complete contact information!
               </AlertDescription>
-            </Alert>
-
-            <div className="grid gap-4 md:grid-cols-2">
+            </Alert>            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="businessCategory">Business Category</Label>
                 <Input
@@ -182,6 +184,74 @@ export default function NewScrapingJobPage() {
                 {errors.location && (
                   <p className="text-sm text-red-600">{errors.location.message}</p>
                 )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Lead Quality Filters</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which contact information is required. Leads missing checked fields will be excluded.
+                </p>
+                <Alert className="mt-2">
+                  <AlertDescription className="text-xs">
+                    💡 <strong>Smart Sourcing:</strong> We combine leads from Google Places API (verified data with phones/websites) 
+                    and AI generation (adds emails and additional leads). Duplicates are automatically merged with preference for real data.
+                  </AlertDescription>
+                </Alert>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="requireEmail"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="requireEmail"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="requireEmail" className="font-normal cursor-pointer">
+                    Require Email Address
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="requirePhone"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="requirePhone"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="requirePhone" className="font-normal cursor-pointer">
+                    Require Phone Number
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Controller
+                    name="requireWebsite"
+                    control={control}
+                    render={({ field }) => (
+                      <Checkbox
+                        id="requireWebsite"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                  <Label htmlFor="requireWebsite" className="font-normal cursor-pointer">
+                    Require Website
+                  </Label>
+                </div>
               </div>
             </div>
 

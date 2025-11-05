@@ -21,6 +21,7 @@ export default function PricingPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['pricing-plans'],
@@ -102,27 +103,51 @@ export default function PricingPage() {
           description: `Subscription to ${planName} plan`,
           order_id: order.id,
           handler: async function (response: any) {
-            // Verify payment
-            const verifyResponse = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                planId,
-              }),
-            });
+            try {
+              // Show verifying state
+              setIsVerifyingPayment(true);
+              toast.loading('Verifying payment...', { id: 'payment-verify' });
 
-            if (verifyResponse.ok) {
-              toast.success('Payment successful! Your subscription is now active.');
-              router.push('/dashboard');
-            } else {
-              toast.error('Payment verification failed');
+              // Verify payment
+              const verifyResponse = await fetch('/api/payment/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  planId,
+                }),
+              });
+
+              if (verifyResponse.ok) {
+                toast.success('🎉 Payment successful! Activating your subscription...', { 
+                  id: 'payment-verify',
+                  duration: 3000 
+                });
+                
+                // Small delay to show success message
+                setTimeout(() => {
+                  router.push('/dashboard');
+                }, 1500);
+              } else {
+                const errorData = await verifyResponse.json();
+                toast.error(errorData.error || 'Payment verification failed', { id: 'payment-verify' });
+                setIsVerifyingPayment(false);
+              }
+            } catch (error: any) {
+              toast.error('Failed to verify payment', { id: 'payment-verify' });
+              setIsVerifyingPayment(false);
+            }
+          },
+          modal: {
+            ondismiss: function() {
+              setLoadingPlan(null);
             }
           },
           prefill: {
-            email: subscription?.user?.email || '',
+            email: session?.user?.email || '',
+            name: session?.user?.name || '',
             contact: '',
           },
           theme: {
@@ -173,6 +198,31 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      {/* Payment Verification Overlay */}
+      {isVerifyingPayment && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-background p-8 rounded-lg shadow-2xl text-center max-w-md mx-4">
+            <div className="mb-4 flex justify-center">
+              <div className="relative">
+                <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Check className="h-8 w-8 text-primary animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Processing Payment</h2>
+            <p className="text-muted-foreground mb-4">
+              Please wait while we verify your payment and activate your subscription...
+            </p>
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div className="bg-primary h-full animate-progress" style={{
+                animation: 'progress 2s ease-in-out infinite'
+              }}></div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
