@@ -78,11 +78,17 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-14 items-center px-4 sm:px-6 lg:px-8">
+      <div className="flex h-14 items-center px-3 sm:px-4 lg:px-8">
+        <div className="mr-2 sm:mr-4 flex md:hidden">
+          <a className="flex items-center space-x-2" href="/dashboard">
+            <Database className="h-5 w-5 sm:h-6 sm:w-6" />
+          </a>
+        </div>
+        
         <div className="mr-4 hidden md:flex">
           <a className="mr-6 flex items-center space-x-2" href="/dashboard">
             <Database className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">LeadGen Pro</span>
+            <span className="hidden font-bold lg:inline-block">LeadGen Pro</span>
           </a>
         </div>
         
@@ -90,12 +96,12 @@ export function Navbar() {
           <div className="w-full flex-1 md:w-auto md:flex-none">
             <Button 
               variant="outline" 
-              className="relative h-9 w-9 p-0 xl:h-10 xl:w-60 xl:justify-start xl:px-3 xl:py-2"
+              className="relative h-9 w-full justify-start px-3 py-2 text-sm sm:w-64 md:w-auto lg:w-64"
               onClick={() => setOpen(true)}
             >
-              <Search className="h-4 w-4 xl:mr-2" />
-              <span className="hidden xl:inline-flex">Search leads...</span>
-              <kbd className="pointer-events-none hidden xl:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 ml-auto">
+              <Search className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline-flex flex-1 text-left">Search leads...</span>
+              <kbd className="pointer-events-none hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 ml-auto">
                 <span className="text-xs">⌘</span>K
               </kbd>
             </Button>
@@ -106,7 +112,7 @@ export function Navbar() {
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
-                  <AvatarFallback>
+                  <AvatarFallback className="text-xs">
                     {session?.user?.name?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -115,13 +121,13 @@ export function Navbar() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
+                  <p className="text-sm font-medium leading-none truncate">
                     {session?.user?.name}
                   </p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p className="text-xs leading-none text-muted-foreground truncate">
                     {session?.user?.email}
                   </p>
-                  <Badge variant="secondary" className="w-fit mt-1">
+                  <Badge variant="secondary" className="w-fit mt-1 text-xs">
                     {session?.user?.role}
                   </Badge>
                 </div>
