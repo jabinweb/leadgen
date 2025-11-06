@@ -133,6 +133,17 @@ export function Navbar() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {session?.user?.role === 'admin' && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <a href="/admin">
+                      <Crown className="mr-2 h-4 w-4 text-red-600" />
+                      <span className="text-red-600 font-semibold">Admin Panel</span>
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem asChild>
                 <a href="/dashboard/settings/subscription">
                   <CreditCard className="mr-2 h-4 w-4" />
