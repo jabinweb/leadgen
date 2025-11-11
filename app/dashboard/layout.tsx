@@ -46,26 +46,30 @@ export default function DashboardLayout({
     <div className="min-h-screen">
       <Navbar />
       <EmailReplyChecker />
-      <div className="flex h-[calc(100vh-3.5rem)]">
-        {/* Mobile Sidebar */}
+      
+      {/* Mobile Header with Menu Button */}
+      <div className="lg:hidden sticky top-14 z-40 bg-background border-b px-4 py-3 flex items-center gap-3">
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetTrigger asChild className="lg:hidden fixed bottom-4 left-4 z-50">
-            <Button size="icon" className="h-12 w-12 rounded-full shadow-lg">
-              <Menu className="h-6 w-6" />
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon">
+              <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-64">
             <Sidebar onNavigate={() => setSidebarOpen(false)} />
           </SheetContent>
         </Sheet>
+        <h1 className="text-lg font-semibold">Dashboard</h1>
+      </div>
 
-        {/* Desktop Sidebar */}
-        <aside className="hidden lg:block sticky top-0 h-full overflow-y-auto border-r">
+      <div className="flex min-h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-3.5rem)]">
+        {/* Desktop Sidebar - Hidden on Mobile */}
+        <aside className="hidden lg:block sticky top-0 h-full overflow-y-auto border-r bg-background">
           <Sidebar />
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 w-full">
           <UsageBanner />
           {children}
         </main>

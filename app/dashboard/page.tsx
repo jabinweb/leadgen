@@ -75,11 +75,11 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+    <div className="flex-1 space-y-4 md:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight hidden lg:block">Dashboard</h2>
         <div className="flex items-center space-x-2">
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/dashboard/scraping/new">Start New Job</Link>
           </Button>
         </div>
@@ -90,10 +90,10 @@ export default function Dashboard() {
 
       <StatsCards stats={stats!} />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-7">
         <LeadsChart />
         
-        <Card className="col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Scraping Jobs</CardTitle>
             <CardDescription>

@@ -16,7 +16,7 @@ export function LeadsChart() {
   });
 
   return (
-    <Card className="col-span-4">
+    <Card className="lg:col-span-4">
       <CardHeader>
         <CardTitle>Leads Overview</CardTitle>
         <CardDescription>
@@ -25,7 +25,7 @@ export function LeadsChart() {
       </CardHeader>
       <CardContent className="pl-2">
         {isLoading ? (
-          <div className="flex items-center justify-center h-[350px]">
+          <div className="flex items-center justify-center h-[250px] md:h-[350px]">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
