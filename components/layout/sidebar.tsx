@@ -68,7 +68,11 @@ const navigation: NavigationItem[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['Emails']);
@@ -161,6 +165,7 @@ export function Sidebar() {
                               isActive(child.href) && "bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-500"
                             )}
                             asChild
+                            onClick={onNavigate}
                           >
                             <Link href={child.href}>
                               <child.icon className={cn(
@@ -182,6 +187,7 @@ export function Sidebar() {
                       isActive(item.href) && "bg-blue-50 text-blue-700 font-medium border-l-2 border-blue-500"
                     )}
                     asChild
+                    onClick={onNavigate}
                   >
                     <Link href={item.href}>
                       <item.icon className={cn(
