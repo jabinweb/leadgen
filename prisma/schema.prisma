@@ -89,6 +89,10 @@ model UserProfile {
   imapUser          String?
   imapPassword      String?  // Will be encrypted
   
+  // Per-user API Keys
+  geminiApiKey      String?  // Will be encrypted
+  googlePlacesApiKey String? // Will be encrypted
+  
   isComplete        Boolean  @default(false)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

@@ -39,8 +39,22 @@ class ScrapingQueue {
     const scraper = new WebScraper();
     
     try {
+      // Fetch user's API keys
+      const { prisma } = await import('@/lib/prisma');
+      const { decrypt } = await import('@/lib/encryption');
+      
+      const userProfile = await prisma.userProfile.findUnique({
+        where: { userId: item.userId },
+        select: { geminiApiKey: true, googlePlacesApiKey: true },
+      });
+
+      const userApiKeys = {
+        geminiApiKey: userProfile?.geminiApiKey ? decrypt(userProfile.geminiApiKey) : undefined,
+        googlePlacesApiKey: userProfile?.googlePlacesApiKey ? decrypt(userProfile.googlePlacesApiKey) : undefined,
+      };
+
       await scraper.initialize();
-      await scraper.scrapeLeads(item.jobId, item.config, item.userId);
+      await scraper.scrapeLeads(item.jobId, item.config, item.userId, userApiKeys);
     } catch (error) {
       console.error(`Scraping job ${item.jobId} failed:`, error);
     } finally {

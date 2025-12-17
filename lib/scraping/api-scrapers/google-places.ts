@@ -9,8 +9,8 @@ export interface GooglePlacesConfig {
 export class GooglePlacesAPI {
   private apiKey: string;
 
-  constructor() {
-    this.apiKey = process.env.GOOGLE_PLACES_API_KEY || '';
+  constructor(customApiKey?: string) {
+    this.apiKey = customApiKey || process.env.GOOGLE_PLACES_API_KEY || '';
   }
 
   async searchBusinesses(config: GooglePlacesConfig): Promise<ScrapedLead[]> {

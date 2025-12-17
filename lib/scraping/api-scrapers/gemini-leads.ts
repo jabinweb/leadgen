@@ -10,10 +10,10 @@ interface GeminiLeadRequest {
 export class GeminiLeadsGenerator {
   private ai: GoogleGenAI;
 
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+  constructor(customApiKey?: string) {
+    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is required');
+      throw new Error('GEMINI_API_KEY is required. Please set it in your environment or provide your own API key in Settings.');
     }
     this.ai = new GoogleGenAI({ apiKey });
   }

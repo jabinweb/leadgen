@@ -30,6 +30,7 @@ const scrapingJobSchema = z.object({
   requireEmail: z.boolean().default(false),
   requirePhone: z.boolean().default(false),
   requireWebsite: z.boolean().default(false),
+  useAiEnrichment: z.boolean().default(false),
 });
 
 type ScrapingJobForm = z.infer<typeof scrapingJobSchema>;
@@ -70,6 +71,7 @@ export default function NewScrapingJobPage() {
       requireEmail: false,
       requirePhone: false,
       requireWebsite: false,
+      useAiEnrichment: false,
     },
   });
 
@@ -85,6 +87,7 @@ export default function NewScrapingJobPage() {
         businessCategory: data.businessCategory,
         location: data.location,
         maxResults: data.maxResults,
+        useAiEnrichment: data.useAiEnrichment,
         filters: {
           requireEmail: data.requireEmail,
           requirePhone: data.requirePhone,
@@ -93,6 +96,7 @@ export default function NewScrapingJobPage() {
       };
 
       console.log('Creating job with filters:', configuration.filters);
+      console.log('AI Enrichment enabled:', configuration.useAiEnrichment);
 
       const response = await fetch('/api/scraping/jobs', {
         method: 'POST',
@@ -148,11 +152,7 @@ export default function NewScrapingJobPage() {
               )}
             </div>
 
-            <Alert>
-              <AlertDescription className="text-sm">
-                🚀 Leads will be automatically collected from multiple sources (Google Places API + AI) to maximize results and provide complete contact information!
-              </AlertDescription>
-            </Alert>            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="businessCategory">Business Category</Label>
                 <Input
@@ -189,34 +189,74 @@ export default function NewScrapingJobPage() {
 
             <div className="space-y-4">
               <div>
-                <Label className="text-base font-semibold">Lead Quality Filters</Label>
+                <Label className="text-base font-semibold">Data Source</Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Select which contact information is required. Leads missing checked fields will be excluded.
+                  Choose how to collect lead data
                 </p>
-                <Alert className="mt-2">
-                  <AlertDescription className="text-xs">
-                    💡 <strong>Smart Sourcing:</strong> We combine leads from Google Places API (verified data with phones/websites) 
-                    and AI generation (adds emails and additional leads). Duplicates are automatically merged with preference for real data.
-                  </AlertDescription>
-                </Alert>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Controller
-                    name="requireEmail"
+                    name="useAiEnrichment"
                     control={control}
                     render={({ field }) => (
                       <Checkbox
-                        id="requireEmail"
+                        id="useAiEnrichment"
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     )}
                   />
-                  <Label htmlFor="requireEmail" className="font-normal cursor-pointer">
-                    Require Email Address
+                  <Label htmlFor="useAiEnrichment" className="font-normal cursor-pointer">
+                    Enable AI Enrichment (Gemini)
                   </Label>
+                </div>
+                <Alert className="ml-6">
+                  <AlertDescription className="text-xs">
+                    {watch('useAiEnrichment') ? (
+                      <>⚠️ <strong>AI Enabled:</strong> Will use Gemini API to enrich leads with additional data. May hit quota limits on free tier.</>
+                    ) : (
+                      <>✅ <strong>Google Places Only:</strong> Reliable data with verified phones and websites. Recommended to avoid API quota issues.</>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-semibold">Lead Quality Filters</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which contact information is required. Leads missing checked fields will be excluded.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Controller
+                      name="requireEmail"
+                      control={control}
+                      render={({ field }) => (
+                        <Checkbox
+                          id="requireEmail"
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                    <Label htmlFor="requireEmail" className="font-normal cursor-pointer">
+                      Require Email Address
+                    </Label>
+                  </div>
+                  {watch('requireEmail') && (
+                    <Alert className="ml-6">
+                      <AlertDescription className="text-xs">
+                        ⚠️ <strong>Warning:</strong> Google Places API rarely includes emails. Enabling this may significantly reduce your results. Consider leaving unchecked and enriching emails later.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">

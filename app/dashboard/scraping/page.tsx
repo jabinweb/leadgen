@@ -153,6 +153,36 @@ export default function ScrapingJobsPage() {
     router.push(`/dashboard/leads?scrapingJobId=${jobId}`);
   };
 
+  const handleRerunJob = async (job: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const config = job.configuration || {};
+      
+      const response = await fetch('/api/scraping/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${job.name} (Rerun)`,
+          targetWebsite: job.targetWebsite,
+          searchQuery: job.searchQuery,
+          maxResults: job.maxResults,
+          configuration: config,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to rerun job');
+      }
+
+      toast.success('Job created and started successfully');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to rerun job');
+    }
+  };
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       const allJobIds = data?.jobs?.map((job: any) => job.id) || [];
@@ -353,6 +383,10 @@ export default function ScrapingJobsPage() {
                                 View Leads
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem onClick={(e) => handleRerunJob(job, e)}>
+                              <Play className="mr-2 h-4 w-4" />
+                              Rerun Job
+                            </DropdownMenuItem>
                             {job.status === 'RUNNING' && (
                               <DropdownMenuItem 
                                 onClick={(e) => handleCancelJob(job.id, e)}

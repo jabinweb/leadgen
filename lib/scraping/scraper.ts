@@ -13,6 +13,7 @@ export interface ScrapingConfig {
   searchQuery?: string;
   location?: string;
   maxResults: number;
+  useAiEnrichment?: boolean;
   fields: string[];
   selectors: {
     [key: string]: string;
@@ -66,7 +67,8 @@ export class WebScraper {
   async scrapeLeads(
     jobId: string,
     config: ScrapingConfig,
-    userId: string
+    userId: string,
+    userApiKeys?: { geminiApiKey?: string; googlePlacesApiKey?: string }
   ): Promise<void> {
     // Don't initialize browser - use API scrapers only
     const leads: ScrapedLead[] = [];
@@ -76,14 +78,15 @@ export class WebScraper {
       
       // Use API scrapers only (no browser scraping in production)
       if (config.platform === 'google-maps') {
-        console.log('🔍 Fetching leads from multiple sources to maximize results...');
+        const useAI = config.useAiEnrichment === true;
+        console.log(`🔍 Fetching leads from ${useAI ? 'multiple sources' : 'Google Places API only'}...`);
         
         // Strategy: Combine leads from all available sources
         const leadPromises: Promise<ScrapedLead[]>[] = [];
         
         // 1. Always try Google Places API first (real verified data)
         console.log('📍 Fetching from Google Places API...');
-        const googlePlaces = new GooglePlacesAPI();
+        const googlePlaces = new GooglePlacesAPI(userApiKeys?.googlePlacesApiKey);
         leadPromises.push(
           googlePlaces.searchBusinesses({
             businessCategory: config.searchQuery || '',
@@ -95,33 +98,41 @@ export class WebScraper {
           })
         );
         
-        // 2. Also fetch from Gemini AI (generates emails and additional leads)
-        console.log('🤖 Fetching from Gemini AI...');
-        const gemini = new GeminiLeadsGenerator();
-        leadPromises.push(
-          gemini.generateLeads({
-            businessCategory: config.searchQuery || '',
-            location: config.location || '',
-            maxResults: Math.min(config.maxResults, 20), // Gemini has limits
-          }).catch(error => {
-            console.log('Gemini AI error:', error.message);
-            return [];
-          })
-        );
+        // 2. Optionally fetch from Gemini AI if enabled (generates emails and additional leads)
+        if (useAI) {
+          console.log('🤖 Fetching from Gemini AI...');
+          const gemini = new GeminiLeadsGenerator(userApiKeys?.geminiApiKey);
+          leadPromises.push(
+            gemini.generateLeads({
+              businessCategory: config.searchQuery || '',
+              location: config.location || '',
+              maxResults: Math.min(config.maxResults, 20), // Gemini has limits
+            }).catch(error => {
+              console.log('Gemini AI error:', error.message);
+              return [];
+            })
+          );
+        } else {
+          console.log('⏭️ Skipping Gemini AI (disabled in configuration)');
+        }
         
         // Wait for all sources to complete
         const allLeads = await Promise.all(leadPromises);
         
         // Combine and deduplicate leads
         const googleLeads = allLeads[0] || [];
-        const geminiLeads = allLeads[1] || [];
+        const geminiLeads = useAI ? (allLeads[1] || []) : [];
         
         console.log(`✅ Google Places: ${googleLeads.length} leads`);
-        console.log(`✅ Gemini AI: ${geminiLeads.length} leads`);
+        if (useAI) {
+          console.log(`✅ Gemini AI: ${geminiLeads.length} leads`);
+        }
         
         // Add all leads (deduplication happens in saveLeads)
         leads.push(...googleLeads);
-        leads.push(...geminiLeads);
+        if (useAI) {
+          leads.push(...geminiLeads);
+        }
         
         console.log(`📊 Total leads before filtering: ${leads.length}`);
         

@@ -31,6 +31,8 @@ export default function SettingsPage() {
     service: '',
     targetAudience: '',
     valueProposition: '',
+    geminiApiKey: '',
+    googlePlacesApiKey: '',
   });
 
   const { data: profile, isLoading } = useQuery({
@@ -55,6 +57,8 @@ export default function SettingsPage() {
         service: profile.service || '',
         targetAudience: profile.targetAudience || '',
         valueProposition: profile.valueProposition || '',
+        geminiApiKey: profile.geminiApiKey || '',
+        googlePlacesApiKey: profile.googlePlacesApiKey || '',
       });
     }
   }, [profile]);
@@ -261,6 +265,62 @@ export default function SettingsPage() {
                 <>
                   <Save className="mr-2 h-4 w-4" />
                   Save Profile
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>API Keys</CardTitle>
+            <CardDescription>
+              Configure your personal API keys for AI enrichment and lead generation
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="geminiApiKey">Gemini API Key</Label>
+              <Input
+                id="geminiApiKey"
+                type="password"
+                value={formData.geminiApiKey}
+                onChange={(e) => handleChange('geminiApiKey', e.target.value)}
+                placeholder="Enter your Gemini API key (optional)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Get your free API key from <a href="https://ai.google.dev" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google AI Studio</a>. Used for AI lead enrichment.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="googlePlacesApiKey">Google Places API Key</Label>
+              <Input
+                id="googlePlacesApiKey"
+                type="password"
+                value={formData.googlePlacesApiKey}
+                onChange={(e) => handleChange('googlePlacesApiKey', e.target.value)}
+                placeholder="Enter your Google Places API key (optional)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Get your API key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Cloud Console</a>. Used for business lead scraping.
+              </p>
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={updateProfileMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {updateProfileMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Settings
                 </>
               )}
             </Button>

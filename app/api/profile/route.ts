@@ -39,12 +39,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Don't return encrypted passwords, but indicate if they exist
-    const { smtpPassword, imapPassword, ...profileData } = profile;
+    // Don't return encrypted passwords/keys, but indicate if they exist
+    const { smtpPassword, imapPassword, geminiApiKey, googlePlacesApiKey, ...profileData } = profile;
     return NextResponse.json({
       ...profileData,
       hasSmtpPassword: !!smtpPassword,
       hasImapPassword: !!imapPassword,
+      geminiApiKey: geminiApiKey ? '••••••••' : '',
+      googlePlacesApiKey: googlePlacesApiKey ? '••••••••' : '',
     });
   } catch (error) {
     console.error('Error fetching profile:', error);
@@ -81,6 +83,8 @@ export async function POST(request: NextRequest) {
       imapSecure,
       imapUser,
       imapPassword,
+      geminiApiKey,
+      googlePlacesApiKey,
     } = data;
 
     // Encrypt SMTP password if provided
@@ -97,6 +101,19 @@ export async function POST(request: NextRequest) {
       console.log('IMAP password encrypted');
     }
 
+    // Encrypt API keys if provided
+    let encryptedGeminiApiKey: string | undefined;
+    if (geminiApiKey) {
+      encryptedGeminiApiKey = encrypt(geminiApiKey);
+      console.log('Gemini API key encrypted');
+    }
+
+    let encryptedGooglePlacesApiKey: string | undefined;
+    if (googlePlacesApiKey) {
+      encryptedGooglePlacesApiKey = encrypt(googlePlacesApiKey);
+      console.log('Google Places API key encrypted');
+    }
+
     // Check if profile is complete
     const isComplete = !!(
       companyName &&
@@ -105,12 +122,14 @@ export async function POST(request: NextRequest) {
       valueProposition
     );
 
-    // Get existing profile to preserve passwords if not updating
+    // Get existing profile to preserve passwords/keys if not updating
     const existingProfile = await prisma.userProfile.findUnique({
       where: { userId: session.user.id },
       select: { 
         smtpPassword: true,
         imapPassword: true,
+        geminiApiKey: true,
+        googlePlacesApiKey: true,
       },
     });
 
@@ -137,6 +156,8 @@ export async function POST(request: NextRequest) {
         imapSecure: imapSecure === 'true' || imapSecure === true,
         imapUser,
         imapPassword: encryptedImapPassword || existingProfile?.imapPassword, // Keep existing if not updating
+        geminiApiKey: encryptedGeminiApiKey || existingProfile?.geminiApiKey, // Keep existing if not updating
+        googlePlacesApiKey: encryptedGooglePlacesApiKey || existingProfile?.googlePlacesApiKey, // Keep existing if not updating
         isComplete,
         updatedAt: new Date(),
       },
@@ -162,6 +183,8 @@ export async function POST(request: NextRequest) {
         imapSecure: imapSecure === 'true' || imapSecure === true,
         imapUser,
         imapPassword: encryptedImapPassword,
+        geminiApiKey: encryptedGeminiApiKey,
+        googlePlacesApiKey: encryptedGooglePlacesApiKey,
         isComplete,
       },
     });
