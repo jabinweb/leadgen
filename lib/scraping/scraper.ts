@@ -9,7 +9,7 @@ import { GeminiLeadsGenerator } from './api-scrapers/gemini-leads';
 
 export interface ScrapingConfig {
   targetWebsite: string;
-  platform?: 'google-maps' | 'yelp' | 'facebook' | 'instagram' | 'custom';
+  platform?: 'google-maps' | 'google-maps-api' | 'yelp' | 'facebook' | 'instagram' | 'custom';
   searchQuery?: string;
   location?: string;
   maxResults: number;
@@ -53,9 +53,26 @@ export class WebScraper {
   private browser: Browser | null = null;
 
   async initialize() {
-    // Skip Playwright browser launch for production
-    // Use API-based scrapers only
-    console.log('Using API-based scrapers only (no browser required)');
+    try {
+      // Launch browser for scraping
+      console.log('[Scraper] Launching browser for scraping...');
+      this.browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu',
+        ],
+      });
+      console.log('[Scraper] Browser launched successfully');
+    } catch (error: any) {
+      console.error('[Scraper] Failed to launch browser:', error.message);
+      throw new Error(`Browser initialization failed: ${error.message}`);
+    }
   }
 
   async close() {
@@ -68,16 +85,15 @@ export class WebScraper {
     jobId: string,
     config: ScrapingConfig,
     userId: string,
-    userApiKeys?: { geminiApiKey?: string; googlePlacesApiKey?: string }
+    userApiKeys?: { geminiApiKey?: string; googlePlacesApiKey?: string; aiModel?: string }
   ): Promise<void> {
-    // Don't initialize browser - use API scrapers only
     const leads: ScrapedLead[] = [];
     
     try {
       await this.updateJobStatus(jobId, ScrapingStatus.RUNNING);
       
-      // Use API scrapers only (no browser scraping in production)
-      if (config.platform === 'google-maps') {
+      // Use API-based scraping (fast and reliable)
+      if (config.platform === 'google-maps' || config.platform === 'google-maps-api') {
         const useAI = config.useAiEnrichment === true;
         console.log(`🔍 Fetching leads from ${useAI ? 'multiple sources' : 'Google Places API only'}...`);
         
@@ -101,12 +117,12 @@ export class WebScraper {
         // 2. Optionally fetch from Gemini AI if enabled (generates emails and additional leads)
         if (useAI) {
           console.log('🤖 Fetching from Gemini AI...');
-          const gemini = new GeminiLeadsGenerator(userApiKeys?.geminiApiKey);
+          const gemini = new GeminiLeadsGenerator(userApiKeys?.geminiApiKey, userApiKeys?.aiModel);
           leadPromises.push(
             gemini.generateLeads({
               businessCategory: config.searchQuery || '',
               location: config.location || '',
-              maxResults: Math.min(config.maxResults, 20), // Gemini has limits
+              maxResults: config.maxResults, // Use full maxResults
             }).catch(error => {
               console.log('Gemini AI error:', error.message);
               return [];

@@ -9,13 +9,16 @@ interface GeminiLeadRequest {
 
 export class GeminiLeadsGenerator {
   private ai: GoogleGenAI;
+  private model: string;
 
-  constructor(customApiKey?: string) {
+  constructor(customApiKey?: string, customModel?: string) {
     const apiKey = customApiKey || process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is required. Please set it in your environment or provide your own API key in Settings.');
     }
     this.ai = new GoogleGenAI({ apiKey });
+    // Use gemini-1.5-flash as default (more stable free tier)
+    this.model = customModel || 'gemini-1.5-flash';
   }
 
   async generateLeads(params: GeminiLeadRequest): Promise<ScrapedLead[]> {
@@ -48,8 +51,10 @@ Format the response as a JSON array with this exact structure:
 
 Only return the JSON array, no additional text or explanation.`;
 
+      console.log(`[Gemini] Using model: ${this.model}`);
+      
       const response = await this.ai.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+        model: this.model,
         contents: prompt,
       });
 
