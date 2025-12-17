@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
-  // Lightweight middleware - admin auth is handled in layout
+export function proxy(request: NextRequest) {
+  // Lightweight proxy - admin auth is handled in layout
   return NextResponse.next()
 }
 
