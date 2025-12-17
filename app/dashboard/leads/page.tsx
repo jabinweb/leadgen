@@ -66,6 +66,7 @@ export default function LeadsPage() {
   
   const [search, setSearch] = useState('');
   const [industry, setIndustry] = useState('');
+  const [source, setSource] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -87,14 +88,25 @@ export default function LeadsPage() {
   });
   const limit = 10;
 
+  // Fetch available filter options
+  const { data: filterOptions } = useQuery({
+    queryKey: ['lead-filters'],
+    queryFn: async () => {
+      const response = await fetch('/api/leads/filters');
+      if (!response.ok) throw new Error('Failed to fetch filters');
+      return response.json();
+    },
+  });
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ['leads', { search, industry, status, page, limit, scrapingJobId }],
+    queryKey: ['leads', { search, industry, source, status, page, limit, scrapingJobId }],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
         ...(search && { search }),
         ...(industry && industry !== 'all' && { industry }),
+        ...(source && source !== 'all' && { source }),
         ...(status && status !== 'all' && { status }),
         ...(scrapingJobId && { scrapingJobId }),
       });
@@ -341,38 +353,64 @@ export default function LeadsPage() {
                 />
               </div>
             </div>
-            <Select value={industry} onValueChange={setIndustry}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by industry" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Industries</SelectItem>
-                <SelectItem value="Technology">Technology</SelectItem>
-                <SelectItem value="Healthcare">Healthcare</SelectItem>
-                <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="Education">Education</SelectItem>
-                <SelectItem value="Manufacturing">Manufacturing</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by status" />
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="NEW">🆕 New</SelectItem>
-                <SelectItem value="CONTACTED">📧 Contacted</SelectItem>
-                <SelectItem value="RESPONDED">💬 Responded</SelectItem>
-                <SelectItem value="QUALIFIED">✅ Qualified</SelectItem>
-                <SelectItem value="CONVERTED">🎉 Converted</SelectItem>
-                <SelectItem value="LOST">❌ Lost</SelectItem>
-                <SelectItem value="UNSUBSCRIBED">🚫 Unsubscribed</SelectItem>
+                {filterOptions?.statuses?.map((s: any) => {
+                  const icons: any = {
+                    NEW: '🆕',
+                    CONTACTED: '📧',
+                    RESPONDED: '💬',
+                    QUALIFIED: '✅',
+                    CONVERTED: '🎉',
+                    LOST: '❌',
+                    UNSUBSCRIBED: '🚫',
+                  };
+                  return (
+                    <SelectItem key={s.status} value={s.status}>
+                      {icons[s.status] || ''} {s.status} ({s.count})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-            <Button variant="outline">
-              <Filter className="mr-2 h-4 w-4" />
-              More Filters
-            </Button>
+            <Select value={industry} onValueChange={setIndustry}>
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="Industry" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Industries</SelectItem>
+                {filterOptions?.industries?.map((ind: string) => (
+                  <SelectItem key={ind} value={ind}>
+                    {ind}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={source} onValueChange={setSource}>
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder="Source" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                {filterOptions?.sources?.map((src: string) => {
+                  const icons: any = {
+                    'Google Places': '📍',
+                    'Manual': '✍️',
+                    'Import': '📥',
+                    'API': '🔗',
+                  };
+                  return (
+                    <SelectItem key={src} value={src}>
+                      {icons[src] || ''} {src}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           {isLoading ? (
@@ -395,10 +433,11 @@ export default function LeadsPage() {
                       />
                     </TableHead>
                     <TableHead>Company</TableHead>
-                    {/* <TableHead>Industry</TableHead> */}
+                    <TableHead>Industry</TableHead>
                     <TableHead>Contact Info</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Tags</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -442,11 +481,15 @@ export default function LeadsPage() {
                           )}
                         </div>
                       </TableCell>
-                      {/* <TableCell>
-                        {lead.industry && (
-                          <Badge variant="outline">{lead.industry}</Badge>
+                      <TableCell>
+                        {lead.industry ? (
+                          <Badge variant="outline" className="text-xs">
+                            {lead.industry}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
                         )}
-                      </TableCell> */}
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           {lead.email && (
@@ -470,7 +513,9 @@ export default function LeadsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{lead.source}</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {lead.source}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <Badge 
@@ -483,9 +528,28 @@ export default function LeadsPage() {
                             lead.status === 'UNSUBSCRIBED' ? 'destructive' :
                             'outline'
                           }
+                          className="text-xs"
                         >
                           {lead.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1 max-w-[120px]">
+                          {lead.tags && lead.tags.length > 0 ? (
+                            lead.tags.slice(0, 2).map((tag: string, idx: number) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                          {lead.tags && lead.tags.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{lead.tags.length - 2}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

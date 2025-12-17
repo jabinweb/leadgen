@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
           { contactName: { contains: search, mode: 'insensitive' } },
         ],
       }),
-      ...(industry && { industry: { contains: industry, mode: 'insensitive' } }),
-      ...(source && { source: { contains: source, mode: 'insensitive' } }),
+      ...(industry && { industry }),
+      ...(source && { source }),
       ...(status && { status }),
       ...(scrapingJobId && { scrapingJobId }),
     };

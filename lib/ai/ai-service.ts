@@ -1,6 +1,93 @@
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+/**
+ * Get AI client with custom API key
+ */
+export function getAIClient(apiKey?: string) {
+  const key = (apiKey || process.env.GEMINI_API_KEY || '').trim();
+  
+  console.log('[getAIClient] Received apiKey:', apiKey ? apiKey.substring(0, 15) + '...' : 'undefined');
+  console.log('[getAIClient] Key length:', key?.length);
+  
+  // Debug: Check for non-ASCII characters
+  if (key) {
+    const nonAsciiChars = [];
+    for (let i = 0; i < Math.min(key.length, 50); i++) {
+      const charCode = key.charCodeAt(i);
+      if (charCode > 127) {
+        nonAsciiChars.push({ index: i, char: key[i], code: charCode });
+      }
+    }
+    if (nonAsciiChars.length > 0) {
+      console.error('[getAIClient] Found non-ASCII characters:', nonAsciiChars);
+      console.error('[getAIClient] Falling back to env key');
+      const envKey = process.env.GEMINI_API_KEY;
+      if (!envKey) {
+        throw new Error('Custom API key contains invalid characters and no GEMINI_API_KEY environment variable is set. Please check your API key in settings or set GEMINI_API_KEY in your .env file.');
+      }
+      return new GoogleGenAI({ apiKey: envKey });
+    }
+  }
+  
+  if (!key) {
+    throw new Error('No API key provided. Please set your Gemini API key in settings or add GEMINI_API_KEY to your .env file.');
+  }
+  
+  console.log('[getAIClient] Using valid key');
+  return new GoogleGenAI({ apiKey: key });
+}
+
+/**
+ * List available models for the given API key
+ */
+export async function listAvailableModels(apiKey?: string): Promise<Array<{ name: string; displayName: string; description: string }>> {
+  try {
+    const client = getAIClient(apiKey);
+    const modelsPager = await client.models.list();
+    
+    // Convert pager to array
+    const modelsArray: any[] = [];
+    for await (const model of modelsPager) {
+      modelsArray.push(model);
+    }
+    
+    // Filter for text generation models (exclude embeddings, image, video, audio, and other specialized models)
+    const generativeModels = modelsArray
+      .filter((model: any) => {
+        const name = model.name?.toLowerCase() || '';
+        
+        // Must include 'gemini'
+        if (!name.includes('gemini')) return false;
+        
+        // Exclude specialized models
+        const excludePatterns = [
+          'embedding',
+          'image',
+          'tts',
+          'audio',
+          'video',
+          'robotics',
+          'computer-use'
+        ];
+        
+        // Check if any exclude pattern matches
+        const isExcluded = excludePatterns.some(pattern => name.includes(pattern));
+        
+        return !isExcluded;
+      })
+      .map((model: any) => ({
+        name: model.name.replace('models/', ''),
+        displayName: model.displayName || model.name.replace('models/', ''),
+        description: model.description || '',
+      }));
+
+    console.log('Filtered text generation models:', generativeModels.length);
+    return generativeModels;
+  } catch (error: any) {
+    console.error('Error listing models:', error);
+    throw new Error(error.message || 'Failed to list available models');
+  }
+}
 
 export interface SubjectLineVariant {
   subject: string;
@@ -70,8 +157,11 @@ export async function generateSubjectLines(params: {
   targetAudience?: string;
   tone?: 'professional' | 'casual' | 'urgent' | 'friendly';
   count?: number;
+  model?: string;
+  apiKey?: string;
 }): Promise<SubjectLineVariant[]> {
-  const { companyName, industry, productService, targetAudience, tone = 'professional', count = 5 } = params;
+  const { companyName, industry, productService, targetAudience, tone = 'professional', count = 5, model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
 
   const prompt = `You are an expert email marketer specializing in cold outreach campaigns.
 
@@ -100,8 +190,8 @@ Return ONLY a JSON array with this structure:
   }
 ]`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-001',
+  const response = await client.models.generateContent({
+    model,
     contents: prompt,
   });
 
@@ -117,11 +207,14 @@ Return ONLY a JSON array with this structure:
  */
 export async function optimizeEmailContent(params: {
   content: string;
+  model?: string;
+  apiKey?: string;
   companyName: string;
   goal?: string;
   targetAudience?: string;
 }): Promise<ContentOptimization> {
-  const { content, companyName, goal = 'Generate leads', targetAudience = 'Business decision makers' } = params;
+  const { content, companyName, goal = 'Generate leads', targetAudience = 'Business decision makers', model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
 
   const prompt = `You are an expert copywriter specializing in cold email optimization.
 
@@ -168,8 +261,8 @@ Return ONLY a JSON object:
   }
 }`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-001',
+  const response = await client.models.generateContent({
+    model,
     contents: prompt,
   });
 
@@ -184,6 +277,7 @@ Return ONLY a JSON object:
  * Predict lead qualification score
  */
 export async function qualifyLead(params: {
+  apiKey?: string;
   companyName: string;
   industry?: string;
   website?: string;
@@ -194,8 +288,10 @@ export async function qualifyLead(params: {
   description?: string;
   source?: string;
   targetCriteria?: string;
+  model?: string;
 }): Promise<LeadQualification> {
-  const { companyName, industry, website, email, phone, revenue, employeeCount, description, source, targetCriteria } = params;
+  const { companyName, industry, website, email, phone, revenue, employeeCount, description, source, targetCriteria, model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
 
   const prompt = `You are an expert sales analyst. Evaluate this lead's quality and conversion potential.
 
@@ -237,8 +333,8 @@ Return ONLY a JSON object:
   "conversionProbability": 65
 }`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-001',
+  const response = await client.models.generateContent({
+    model,
     contents: prompt,
   });
 
@@ -253,11 +349,14 @@ Return ONLY a JSON object:
  * Analyze sentiment and intent from email replies
  */
 export async function analyzeSentiment(params: {
+  apiKey?: string;
   replyContent: string;
   originalEmail?: string;
   context?: string;
+  model?: string;
 }): Promise<SentimentAnalysis> {
-  const { replyContent, originalEmail, context } = params;
+  const { replyContent, originalEmail, context, model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
 
   const prompt = `You are an expert at analyzing email communication sentiment and intent.
 
@@ -292,8 +391,8 @@ Return ONLY a JSON object:
   "urgency": "HIGH"
 }`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-001',
+  const response = await client.models.generateContent({
+    model,
     contents: prompt,
   });
 
@@ -308,6 +407,7 @@ Return ONLY a JSON object:
  * Generate personalized email content
  */
 export async function generatePersonalizedEmail(params: {
+  apiKey?: string;
   companyName: string;
   contactName?: string;
   industry?: string;
@@ -316,8 +416,10 @@ export async function generatePersonalizedEmail(params: {
   yourService: string;
   valueProposition: string;
   tone?: string;
+  model?: string;
 }): Promise<string> {
-  const { companyName, contactName, industry, website, yourCompany, yourService, valueProposition, tone = 'professional' } = params;
+  const { companyName, contactName, industry, website, yourCompany, yourService, valueProposition, tone = 'professional', model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
 
   const prompt = `Write a personalized cold email for:
 
@@ -343,8 +445,8 @@ Requirements:
 
 Return only the email body text, no subject line.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash-001',
+  const response = await client.models.generateContent({
+    model,
     contents: prompt,
   });
 
@@ -353,4 +455,77 @@ Return only the email body text, no subject line.`;
   }
 
   return response.text.trim();
+}
+
+/**
+ * Generate personalized campaign email based on selected leads' characteristics
+ */
+export async function generateCampaignEmail(params: {
+  apiKey?: string;
+  leads: Array<{
+    companyName: string;
+    industry?: string;
+    status?: string;
+    source?: string;
+  }>;
+  yourCompany?: string;
+  yourService?: string;
+  campaignGoal?: string;
+  tone?: 'professional' | 'casual' | 'friendly' | 'urgent';
+  model?: string;
+}): Promise<{ subject: string; content: string; insights: string }> {
+  const { leads, yourCompany = 'Your Company', yourService = 'Your Service', campaignGoal = 'Generate interest', tone = 'professional', model = 'gemini-2.0-flash', apiKey } = params;
+  const client = getAIClient(apiKey);
+
+  // Analyze the audience
+  const industries = Array.from(new Set(leads.map(l => l.industry).filter(Boolean)));
+  const statuses = Array.from(new Set(leads.map(l => l.status).filter(Boolean)));
+  const sources = Array.from(new Set(leads.map(l => l.source).filter(Boolean)));
+  const leadCount = leads.length;
+
+  const audienceProfile = `
+Audience Profile (${leadCount} recipients):
+- Industries: ${industries.length > 0 ? industries.join(', ') : 'Various'}
+- Lead Statuses: ${statuses.length > 0 ? statuses.join(', ') : 'Not specified'}
+- Lead Sources: ${sources.length > 0 ? sources.join(', ') : 'Not specified'}
+- Sample Companies: ${leads.slice(0, 5).map(l => l.companyName).join(', ')}
+  `;
+
+  const prompt = `You are an expert email marketing copywriter. Create a highly effective cold email campaign based on this audience analysis.
+
+${audienceProfile}
+
+Campaign Details:
+- Your Company: ${yourCompany}
+- Your Service/Product: ${yourService}
+- Campaign Goal: ${campaignGoal}
+- Desired Tone: ${tone}
+
+Create an email that:
+1. Is personalized to this specific audience segment (reference their industries/characteristics)
+2. Clearly communicates value relevant to their business context
+3. Has a compelling opening that grabs attention
+4. Includes social proof or credibility markers if appropriate
+5. Has ONE clear call to action
+6. Uses template variables: {{companyName}}, {{contactName}}, {{email}} for personalization
+7. Is concise (150-200 words maximum)
+8. Avoids spam triggers
+
+Return a JSON object with:
+{
+  "subject": "compelling subject line (under 60 chars)",
+  "content": "email body with {{template}} variables",
+  "insights": "brief explanation of the strategy and why it works for this audience"
+}`;
+
+  const response = await client.models.generateContent({
+    model,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('No response from AI');
+  }
+
+  return extractJSON(response.text);
 }

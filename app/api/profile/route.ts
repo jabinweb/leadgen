@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         imapPort: 993,
         imapSecure: true,
         imapUser: '',
+        aiModel: 'gemini-2.0-flash',
         isComplete: false,
       });
     }
@@ -85,31 +86,32 @@ export async function POST(request: NextRequest) {
       imapPassword,
       geminiApiKey,
       googlePlacesApiKey,
+      aiModel,
     } = data;
 
-    // Encrypt SMTP password if provided
+    // Encrypt SMTP password if provided (skip placeholder bullets)
     let encryptedSmtpPassword: string | undefined;
-    if (smtpPassword) {
+    if (smtpPassword && smtpPassword !== '••••••••') {
       encryptedSmtpPassword = encrypt(smtpPassword);
       console.log('SMTP password encrypted');
     }
 
-    // Encrypt IMAP password if provided
+    // Encrypt IMAP password if provided (skip placeholder bullets)
     let encryptedImapPassword: string | undefined;
-    if (imapPassword) {
+    if (imapPassword && imapPassword !== '••••••••') {
       encryptedImapPassword = encrypt(imapPassword);
       console.log('IMAP password encrypted');
     }
 
-    // Encrypt API keys if provided
+    // Encrypt API keys if provided (skip placeholder bullets)
     let encryptedGeminiApiKey: string | undefined;
-    if (geminiApiKey) {
+    if (geminiApiKey && geminiApiKey !== '••••••••') {
       encryptedGeminiApiKey = encrypt(geminiApiKey);
       console.log('Gemini API key encrypted');
     }
 
     let encryptedGooglePlacesApiKey: string | undefined;
-    if (googlePlacesApiKey) {
+    if (googlePlacesApiKey && googlePlacesApiKey !== '••••••••') {
       encryptedGooglePlacesApiKey = encrypt(googlePlacesApiKey);
       console.log('Google Places API key encrypted');
     }
@@ -158,6 +160,7 @@ export async function POST(request: NextRequest) {
         imapPassword: encryptedImapPassword || existingProfile?.imapPassword, // Keep existing if not updating
         geminiApiKey: encryptedGeminiApiKey || existingProfile?.geminiApiKey, // Keep existing if not updating
         googlePlacesApiKey: encryptedGooglePlacesApiKey || existingProfile?.googlePlacesApiKey, // Keep existing if not updating
+        aiModel: aiModel || 'gemini-2.0-flash',
         isComplete,
         updatedAt: new Date(),
       },
@@ -185,6 +188,7 @@ export async function POST(request: NextRequest) {
         imapPassword: encryptedImapPassword,
         geminiApiKey: encryptedGeminiApiKey,
         googlePlacesApiKey: encryptedGooglePlacesApiKey,
+        aiModel: aiModel || 'gemini-2.0-flash',
         isComplete,
       },
     });
