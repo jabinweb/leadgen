@@ -106,10 +106,7 @@ class ScrapingQueue {
         aiModel: userProfile?.aiModel || 'gemini-1.5-flash',
       };
 
-      console.log(`[Queue] Initializing scraper for job ${item.jobId}...`);
-      await scraper.initialize();
-      
-      console.log(`[Queue] Scraping leads for job ${item.jobId}...`);
+      console.log(`[Queue] Starting API-based scraping for job ${item.jobId}...`);
       await scraper.scrapeLeads(item.jobId, item.config, item.userId, userApiKeys);
       
       console.log(`[Queue] Job ${item.jobId} completed successfully`);
@@ -131,7 +128,6 @@ class ScrapingQueue {
         console.error(`[Queue] Failed to update job status:`, updateError);
       }
     } finally {
-      await scraper.close();
       this.currentJobs.delete(item.jobId);
       
       // Process next items in queue
