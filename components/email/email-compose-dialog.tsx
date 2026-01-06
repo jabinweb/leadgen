@@ -21,6 +21,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { TemplateSelector } from './template-selector';
 
 interface EmailComposeDialogProps {
   open: boolean;
@@ -30,12 +31,24 @@ interface EmailComposeDialogProps {
     subject: string;
     body?: string;
   };
+  leadData?: {
+    contactName?: string;
+    companyName?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    industry?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+  };
 }
 
 export function EmailComposeDialog({
   open,
   onOpenChange,
   replyTo,
+  leadData,
 }: EmailComposeDialogProps) {
   const queryClient = useQueryClient();
   const [sending, setSending] = useState(false);
@@ -53,7 +66,7 @@ export function EmailComposeDialog({
   useEffect(() => {
     if (open) {
       setFormData({
-        to: replyTo?.to || '',
+        to: replyTo?.to || leadData?.email || '',
         subject: replyTo?.subject
           ? replyTo.subject.startsWith('Re:')
             ? replyTo.subject
@@ -71,7 +84,7 @@ export function EmailComposeDialog({
         body: '',
       });
     }
-  }, [open, replyTo]);
+  }, [open, replyTo, leadData]);
 
   const handleSend = async () => {
     if (!formData.to || !formData.subject) {
@@ -193,6 +206,22 @@ export function EmailComposeDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Template Selector - Only show for new emails with lead data */}
+          {!replyTo && leadData && (
+            <div className="flex justify-end">
+              <TemplateSelector
+                leadData={leadData}
+                onSelect={(template) => {
+                  setFormData({
+                    ...formData,
+                    subject: template.subject,
+                    body: template.body,
+                  });
+                }}
+              />
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="to">To</Label>
             <Input

@@ -5,6 +5,7 @@ import { simpleParser } from 'mailparser';
 import { findEmailLogForReply, trackEmailReply } from '@/lib/email-logger';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
+import { logInfo, logError, logWarning } from '@/lib/logger';
 
 interface ImapConfig {
   user: string;
@@ -104,7 +105,7 @@ export class ImapReplyChecker {
             }
 
             if (!results || results.length === 0) {
-              console.log('No new emails found');
+              logInfo('No new emails found');
               imap.end();
               resolve({ processed: 0, errors });
               return;
@@ -135,7 +136,7 @@ export class ImapReplyChecker {
             });
 
             fetch.once('end', () => {
-              console.log('Done fetching all messages');
+              logInfo('Done fetching all messages');
               clearTimeout(safetyTimeout);
               imap.end();
             });
@@ -148,7 +149,7 @@ export class ImapReplyChecker {
         if (!hasResolved) {
           hasResolved = true;
           const errorMsg = err.message || 'Unknown IMAP error';
-          console.error('[IMAP] Connection error:', errorMsg);
+          logError(new Error('IMAP connection error'), { error: errorMsg });
           
           // Provide helpful error messages
           if (errorMsg.includes('Timed out') || errorMsg.includes('timeout')) {
@@ -198,20 +199,18 @@ export class ImapReplyChecker {
       return;
     }
 
-    console.log(`Processing reply from ${from} with subject: ${subject}, date: ${date}`);
-    console.log(`  In-Reply-To header: ${inReplyTo || '(none)'}`);
+    logInfo('Processing reply', { from, subject, date, inReplyTo: inReplyTo || '(none)' });
 
     // Try to find the original email this is replying to
     // Pass In-Reply-To header for EXACT matching via Message-ID
     const originalLog = await findEmailLogForReply(from, subject, this.userId, inReplyTo);
 
     if (!originalLog) {
-      console.log(`⚠️  No matching original email found for reply from ${from}`);
-      console.log(`   This reply will be skipped`);
+      logWarning('No matching original email found for reply - will be skipped', { from });
       return;
     }
 
-    console.log(`Found original email: ${originalLog.id}`);
+    logInfo('Found original email', { emailId: originalLog.id });
 
     // Track the reply with the actual email date
     await trackEmailReply(originalLog.id, subject, text || html, date);
@@ -265,7 +264,7 @@ export class ImapReplyChecker {
         });
       }
 
-      console.log('✅ Updated lead activity and status');
+      logInfo('Updated lead activity and status');
     }
 
     // If part of a campaign, update campaign stats
@@ -277,7 +276,7 @@ export class ImapReplyChecker {
         },
       });
 
-      console.log('✅ Updated campaign reply count');
+      logInfo('Updated campaign reply count');
     }
   }
 }
@@ -317,12 +316,12 @@ export async function getImapReplyChecker(userId?: string): Promise<ImapReplyChe
   if (userId) {
     const userConfig = await getUserImapConfig(userId);
     if (userConfig) {
-      console.log(`Using user's custom IMAP: ${userConfig.host}`);
+      logInfo('Using user custom IMAP config', { host: userConfig.host });
       return new ImapReplyChecker(userConfig, userId);
     }
   }
 
   // Fallback to environment-based config
-  console.log('Using default IMAP from environment');
+  logInfo('Using default IMAP from environment');
   return new ImapReplyChecker();
 }

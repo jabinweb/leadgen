@@ -1,5 +1,6 @@
 import { prisma } from '../prisma';
 import { Prisma } from '@prisma/client';
+import { logError } from '@/lib/logger';
 
 export interface EmailConfig {
   provider: 'smtp' | 'sendgrid' | 'resend';
@@ -44,7 +45,7 @@ export class EmailService {
           throw new Error(`Unsupported email provider: ${this.config.provider}`);
       }
     } catch (error) {
-      console.error('Error sending email:', error);
+      logError(error, { context: 'Error sending email' });
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
@@ -284,7 +285,7 @@ export class CampaignManager {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (error) {
-        console.error(`Error sending email to lead ${campaignLead.leadId}:`, error);
+        logError(error, { context: 'Error sending email to lead', leadId: campaignLead.leadId });
         await this.updateCampaignLeadStatus(
           campaignLead.id,
           'FAILED',
@@ -354,7 +355,7 @@ export class CampaignManager {
       try {
         await this.sendCampaign(campaign.id);
       } catch (error) {
-        console.error(`Error processing scheduled campaign ${campaign.id}:`, error);
+        logError(error, { context: 'Error processing scheduled campaign', campaignId: campaign.id });
         await prisma.emailCampaign.update({
           where: { id: campaign.id },
           data: { status: 'FAILED' as any },

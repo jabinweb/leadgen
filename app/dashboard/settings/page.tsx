@@ -42,6 +42,7 @@ export default function SettingsPage() {
     geminiApiKey: '',
     googlePlacesApiKey: '',
     aiModel: 'gemini-2.0-flash',
+    preferredCurrency: 'USD',
   });
 
   const { data: profile, isLoading } = useQuery({
@@ -84,6 +85,7 @@ export default function SettingsPage() {
         geminiApiKey: geminiKeyTouched ? formData.geminiApiKey : (profile.geminiApiKey || ''),
         googlePlacesApiKey: googlePlacesKeyTouched ? formData.googlePlacesApiKey : (profile.googlePlacesApiKey || ''),
         aiModel: profile.aiModel || 'gemini-2.0-flash',
+        preferredCurrency: profile.preferredCurrency || 'USD',
       });
       // Reset touched state after loading profile
       if (!geminiKeyTouched) setGeminiKeyTouched(false);
@@ -302,8 +304,37 @@ export default function SettingsPage() {
                       />
                     </div>
                   </div>
-                </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="preferredCurrency">Preferred Currency</Label>
+                    <Select 
+                      key={`currency-${formData.preferredCurrency}`}
+                      value={formData.preferredCurrency} 
+                      onValueChange={(value) => handleChange('preferredCurrency', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD - US Dollar ($)</SelectItem>
+                        <SelectItem value="EUR">EUR - Euro (€)</SelectItem>
+                        <SelectItem value="GBP">GBP - British Pound (£)</SelectItem>
+                        <SelectItem value="INR">INR - Indian Rupee (₹)</SelectItem>
+                        <SelectItem value="AUD">AUD - Australian Dollar (A$)</SelectItem>
+                        <SelectItem value="CAD">CAD - Canadian Dollar (C$)</SelectItem>
+                        <SelectItem value="JPY">JPY - Japanese Yen (¥)</SelectItem>
+                        <SelectItem value="CNY">CNY - Chinese Yuan (¥)</SelectItem>
+                        <SelectItem value="CHF">CHF - Swiss Franc (Fr)</SelectItem>
+                        <SelectItem value="SGD">SGD - Singapore Dollar (S$)</SelectItem>
+                        <SelectItem value="AED">AED - UAE Dirham (د.إ)</SelectItem>
+                        <SelectItem value="BRL">BRL - Brazilian Real (R$)</SelectItem>
+                        <SelectItem value="MXN">MXN - Mexican Peso ($)</SelectItem>
+                        <SelectItem value="ZAR">ZAR - South African Rand (R)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Current: {formData.preferredCurrency}</p>
+                  </div>
+                </div>
                 <Separator />
 
                 <div className="space-y-2">

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { logError } from './logger';
 
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-please-change-in-production-32-chars!!';
 const ALGORITHM = 'aes-256-cbc';
@@ -51,7 +52,7 @@ export function decrypt(encryptedText: string): string {
     
     return decrypted;
   } catch (error) {
-    console.error('Decryption error:', error);
+    logError(error, { context: 'Decryption error' });
     return '';
   }
 }

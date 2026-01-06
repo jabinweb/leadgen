@@ -48,6 +48,14 @@ export async function GET(request: NextRequest) {
               status: true,
             },
           },
+          score: {
+            select: {
+              totalScore: true,
+              engagementScore: true,
+              dataQualityScore: true,
+              fitScore: true,
+            },
+          },
         },
       }),
       prisma.lead.count({ where: where as any }),

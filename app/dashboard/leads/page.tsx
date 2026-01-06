@@ -57,6 +57,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { EmailDraftModal } from '@/components/email/email-draft-modal';
+import { LeadScoreBadge } from '@/components/crm/lead-score-badge';
 
 export default function LeadsPage() {
   const searchParams = useSearchParams();
@@ -75,6 +76,22 @@ export default function LeadsPage() {
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [showAddLeadDialog, setShowAddLeadDialog] = useState(false);
   const [isAddingLead, setIsAddingLead] = useState(false);
+  const [showEnrollSequenceDialog, setShowEnrollSequenceDialog] = useState(false);
+  const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false);
+  const [showCreateDealDialog, setShowCreateDealDialog] = useState(false);
+  const [selectedSequenceId, setSelectedSequenceId] = useState('');
+  const [taskData, setTaskData] = useState({
+    title: '',
+    type: 'CALL',
+    priority: 'MEDIUM',
+    dueDate: '',
+  });
+  const [dealData, setDealData] = useState({
+    title: '',
+    value: '',
+    stage: 'DISCOVERY',
+    probability: '50',
+  });
   const [newLead, setNewLead] = useState({
     companyName: '',
     contactName: '',
@@ -94,6 +111,16 @@ export default function LeadsPage() {
     queryFn: async () => {
       const response = await fetch('/api/leads/filters');
       if (!response.ok) throw new Error('Failed to fetch filters');
+      return response.json();
+    },
+  });
+
+  // Fetch available sequences for enrollment
+  const { data: sequences } = useQuery({
+    queryKey: ['sequences'],
+    queryFn: async () => {
+      const response = await fetch('/api/sequences');
+      if (!response.ok) throw new Error('Failed to fetch sequences');
       return response.json();
     },
   });
@@ -271,6 +298,7 @@ export default function LeadsPage() {
       }
 
       toast.success('Lead added successfully!');
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       setShowAddLeadDialog(false);
       setNewLead({
         companyName: '',
@@ -283,11 +311,105 @@ export default function LeadsPage() {
         jobTitle: '',
         description: '',
       });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
     } catch (error) {
       toast.error('Failed to add lead');
     } finally {
       setIsAddingLead(false);
+    }
+  };
+
+  const handleEnrollInSequence = async () => {
+    if (!selectedSequenceId) {
+      toast.error('Please select a sequence');
+      return;
+    }
+    if (selectedLeads.length === 0) {
+      toast.error('No leads selected');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/sequences/${selectedSequenceId}/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: selectedLeads }),
+      });
+
+      if (!response.ok) throw new Error('Failed to enroll leads');
+
+      toast.success(`${selectedLeads.length} lead(s) enrolled in sequence!`);
+      setShowEnrollSequenceDialog(false);
+      setSelectedSequenceId('');
+      setSelectedLeads([]);
+    } catch (error) {
+      toast.error('Failed to enroll leads in sequence');
+    }
+  };
+
+  const handleCreateTasksForLeads = async () => {
+    if (!taskData.title) {
+      toast.error('Task title is required');
+      return;
+    }
+    if (selectedLeads.length === 0) {
+      toast.error('No leads selected');
+      return;
+    }
+
+    try {
+      const promises = selectedLeads.map(leadId =>
+        fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...taskData,
+            leadId,
+            dueDate: taskData.dueDate ? new Date(taskData.dueDate) : null,
+          }),
+        })
+      );
+
+      await Promise.all(promises);
+      toast.success(`${selectedLeads.length} task(s) created!`);
+      setShowCreateTaskDialog(false);
+      setTaskData({ title: '', type: 'CALL', priority: 'MEDIUM', dueDate: '' });
+      setSelectedLeads([]);
+    } catch (error) {
+      toast.error('Failed to create tasks');
+    }
+  };
+
+  const handleCreateDealsForLeads = async () => {
+    if (!dealData.title) {
+      toast.error('Deal title is required');
+      return;
+    }
+    if (selectedLeads.length === 0) {
+      toast.error('No leads selected');
+      return;
+    }
+
+    try {
+      const promises = selectedLeads.map(leadId =>
+        fetch('/api/deals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...dealData,
+            leadId,
+            value: parseFloat(dealData.value) || 0,
+            probability: parseInt(dealData.probability) || 50,
+          }),
+        })
+      );
+
+      await Promise.all(promises);
+      toast.success(`${selectedLeads.length} deal(s) created!`);
+      setShowCreateDealDialog(false);
+      setDealData({ title: '', value: '', stage: 'DISCOVERY', probability: '50' });
+      setSelectedLeads([]);
+    } catch (error) {
+      toast.error('Failed to create deals');
     }
   };
 
@@ -308,6 +430,24 @@ export default function LeadsPage() {
               >
                 <Mail className="mr-2 h-4 w-4" />
                 {isGeneratingEmail ? 'Generating...' : 'Contact Selected'}
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowEnrollSequenceDialog(true)}
+              >
+                Enroll in Sequence
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreateTaskDialog(true)}
+              >
+                Create Task
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreateDealDialog(true)}
+              >
+                Create Deal
               </Button>
               <Button variant="outline" onClick={handleBulkExport}>
                 <Download className="mr-2 h-4 w-4" />
@@ -435,6 +575,7 @@ export default function LeadsPage() {
                     <TableHead>Company</TableHead>
                     <TableHead>Industry</TableHead>
                     <TableHead>Contact Info</TableHead>
+                    <TableHead>Score</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Tags</TableHead>
@@ -511,6 +652,13 @@ export default function LeadsPage() {
                             </a>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <LeadScoreBadge 
+                          score={lead.leadScore?.score || 0} 
+                          showNumber={true}
+                          size="sm"
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className="text-xs">
@@ -776,6 +924,217 @@ export default function LeadsPage() {
             </Button>
             <Button onClick={handleAddLead} disabled={isAddingLead || !newLead.companyName}>
               {isAddingLead ? 'Adding...' : 'Add Lead'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Enroll in Sequence Dialog */}
+      <Dialog open={showEnrollSequenceDialog} onOpenChange={setShowEnrollSequenceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enroll Leads in Sequence</DialogTitle>
+            <DialogDescription>
+              Select a sequence to enroll {selectedLeads.length} lead(s) in automated email follow-up.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="sequence">Select Sequence</Label>
+              <Select value={selectedSequenceId} onValueChange={setSelectedSequenceId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a sequence..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {sequences?.sequences?.filter((seq: any) => seq.isActive).map((seq: any) => (
+                    <SelectItem key={seq.id} value={seq.id}>
+                      {seq.name} ({seq._count?.enrollments || 0} enrolled)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEnrollSequenceDialog(false);
+                setSelectedSequenceId('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEnrollInSequence} disabled={!selectedSequenceId}>
+              Enroll {selectedLeads.length} Lead(s)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Task Dialog */}
+      <Dialog open={showCreateTaskDialog} onOpenChange={setShowCreateTaskDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Tasks for Leads</DialogTitle>
+            <DialogDescription>
+              Create a task for {selectedLeads.length} selected lead(s).
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="taskTitle">Task Title *</Label>
+              <Input
+                id="taskTitle"
+                placeholder="e.g., Follow up call"
+                value={taskData.title}
+                onChange={(e) => setTaskData({ ...taskData, title: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="taskType">Type</Label>
+                <Select value={taskData.type} onValueChange={(value) => setTaskData({ ...taskData, type: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CALL">📞 Call</SelectItem>
+                    <SelectItem value="EMAIL">✉️ Email</SelectItem>
+                    <SelectItem value="MEETING">🤝 Meeting</SelectItem>
+                    <SelectItem value="FOLLOW_UP">🔄 Follow-up</SelectItem>
+                    <SelectItem value="TODO">✅ To-do</SelectItem>
+                    <SelectItem value="DEMO">🎬 Demo</SelectItem>
+                    <SelectItem value="PROPOSAL">📋 Proposal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="taskPriority">Priority</Label>
+                <Select value={taskData.priority} onValueChange={(value) => setTaskData({ ...taskData, priority: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LOW">🟢 Low</SelectItem>
+                    <SelectItem value="MEDIUM">🟡 Medium</SelectItem>
+                    <SelectItem value="HIGH">🟠 High</SelectItem>
+                    <SelectItem value="URGENT">🔴 Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="taskDueDate">Due Date</Label>
+              <Input
+                id="taskDueDate"
+                type="datetime-local"
+                value={taskData.dueDate}
+                onChange={(e) => setTaskData({ ...taskData, dueDate: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateTaskDialog(false);
+                setTaskData({ title: '', type: 'CALL', priority: 'MEDIUM', dueDate: '' });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateTasksForLeads} disabled={!taskData.title}>
+              Create {selectedLeads.length} Task(s)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Deal Dialog */}
+      <Dialog open={showCreateDealDialog} onOpenChange={setShowCreateDealDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Deals for Leads</DialogTitle>
+            <DialogDescription>
+              Create a deal for {selectedLeads.length} selected lead(s).
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="dealTitle">Deal Title *</Label>
+              <Input
+                id="dealTitle"
+                placeholder="e.g., Enterprise Software Package"
+                value={dealData.title}
+                onChange={(e) => setDealData({ ...dealData, title: e.target.value })}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="dealValue">Deal Value ($)</Label>
+                <Input
+                  id="dealValue"
+                  type="number"
+                  placeholder="e.g., 10000"
+                  value={dealData.value}
+                  onChange={(e) => setDealData({ ...dealData, value: e.target.value })}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="dealProbability">Probability (%)</Label>
+                <Input
+                  id="dealProbability"
+                  type="number"
+                  min="0"
+                  max="100"
+                  placeholder="50"
+                  value={dealData.probability}
+                  onChange={(e) => setDealData({ ...dealData, probability: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="dealStage">Stage</Label>
+              <Select value={dealData.stage} onValueChange={(value) => setDealData({ ...dealData, stage: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DISCOVERY">🔍 Discovery</SelectItem>
+                  <SelectItem value="QUALIFICATION">✅ Qualification</SelectItem>
+                  <SelectItem value="PROPOSAL">📋 Proposal</SelectItem>
+                  <SelectItem value="NEGOTIATION">💬 Negotiation</SelectItem>
+                  <SelectItem value="CLOSED_WON">🎉 Closed Won</SelectItem>
+                  <SelectItem value="CLOSED_LOST">❌ Closed Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCreateDealDialog(false);
+                setDealData({ title: '', value: '', stage: 'DISCOVERY', probability: '50' });
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateDealsForLeads} disabled={!dealData.title}>
+              Create {selectedLeads.length} Deal(s)
             </Button>
           </DialogFooter>
         </DialogContent>

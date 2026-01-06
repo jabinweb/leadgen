@@ -100,14 +100,18 @@ export class WebScraper {
         // Strategy: Combine leads from all available sources
         const leadPromises: Promise<ScrapedLead[]>[] = [];
         
+        // Split maxResults between sources when using AI enrichment
+        const googlePlacesLimit = useAI ? Math.ceil(config.maxResults * 0.6) : config.maxResults;
+        const geminiLimit = useAI ? Math.ceil(config.maxResults * 0.5) : 0;
+        
         // 1. Always try Google Places API first (real verified data)
-        console.log('📍 Fetching from Google Places API...');
+        console.log(`📍 Fetching from Google Places API (limit: ${googlePlacesLimit})...`);
         const googlePlaces = new GooglePlacesAPI(userApiKeys?.googlePlacesApiKey);
         leadPromises.push(
           googlePlaces.searchBusinesses({
             businessCategory: config.searchQuery || '',
             location: config.location || '',
-            maxResults: config.maxResults,
+            maxResults: googlePlacesLimit,
           }).catch(error => {
             console.log('Google Places API error:', error.message);
             return [];
@@ -116,13 +120,13 @@ export class WebScraper {
         
         // 2. Optionally fetch from Gemini AI if enabled (generates emails and additional leads)
         if (useAI) {
-          console.log('🤖 Fetching from Gemini AI...');
+          console.log(`🤖 Fetching from Gemini AI (limit: ${geminiLimit})...`);
           const gemini = new GeminiLeadsGenerator(userApiKeys?.geminiApiKey, userApiKeys?.aiModel);
           leadPromises.push(
             gemini.generateLeads({
               businessCategory: config.searchQuery || '',
               location: config.location || '',
-              maxResults: config.maxResults, // Use full maxResults
+              maxResults: geminiLimit,
             }).catch(error => {
               console.log('Gemini AI error:', error.message);
               return [];
@@ -151,6 +155,7 @@ export class WebScraper {
         }
         
         console.log(`📊 Total leads before filtering: ${leads.length}`);
+        console.log(`⚠️ Max allowed: ${config.maxResults}`);
         
       } else if (config.platform === 'yelp') {
         // Use Gemini AI to generate Yelp-style business leads
@@ -176,13 +181,21 @@ export class WebScraper {
         throw new Error('Custom website scraping requires browser automation. Please use Google Maps or Yelp instead.');
       }
 
+      // Enforce max limit before saving (hard cap)
+      if (leads.length > config.maxResults) {
+        console.log(`⚠️ Trimming ${leads.length} leads to max limit of ${config.maxResults}`);
+        leads.splice(config.maxResults);
+      }
+      
       // Save leads in batches
       if (leads.length > 0) {
-        await this.saveLeads(leads, jobId, userId, config.filters);
+        const savedCount = await this.saveLeads(leads, jobId, userId, config.filters, config.maxResults);
+        await this.updateJobProgress(jobId, savedCount, config.maxResults);
+        await this.updateJobStatus(jobId, ScrapingStatus.COMPLETED, savedCount);
+      } else {
+        await this.updateJobProgress(jobId, 0, config.maxResults);
+        await this.updateJobStatus(jobId, ScrapingStatus.COMPLETED, 0);
       }
-
-      await this.updateJobProgress(jobId, leads.length, config.maxResults);
-      await this.updateJobStatus(jobId, ScrapingStatus.COMPLETED, leads.length);
 
     } catch (error) {
       console.error('Scraping error:', error);
@@ -195,10 +208,12 @@ export class WebScraper {
     leads: ScrapedLead[], 
     jobId: string, 
     userId: string,
-    filters?: { requireEmail?: boolean; requirePhone?: boolean; requireWebsite?: boolean }
-  ) {
+    filters?: { requireEmail?: boolean; requirePhone?: boolean; requireWebsite?: boolean },
+    maxLimit?: number
+  ): Promise<number> {
     console.log('Saving leads with filters:', filters);
     console.log('Total leads to process:', leads.length);
+    console.log('Max limit:', maxLimit || 'unlimited');
     
     let filteredCount = 0;
     let savedCount = 0;
@@ -258,7 +273,14 @@ export class WebScraper {
     
     // Now save the deduplicated leads
     const uniqueLeads = Array.from(seenInBatch.values());
-    for (const leadData of uniqueLeads) {
+    
+    // Enforce max limit if specified
+    const leadsToSave = maxLimit ? uniqueLeads.slice(0, maxLimit) : uniqueLeads;
+    if (maxLimit && uniqueLeads.length > maxLimit) {
+      console.log(`⚠️ Enforcing max limit: saving ${maxLimit} out of ${uniqueLeads.length} unique leads`);
+    }
+    
+    for (const leadData of leadsToSave) {
       // Check for duplicates in database
       const existing = await prisma.lead.findFirst({
         where: {
@@ -288,12 +310,19 @@ export class WebScraper {
           },
         });
         savedCount++;
+        
+        // Stop if we've reached the max limit
+        if (maxLimit && savedCount >= maxLimit) {
+          console.log(`✅ Reached max limit of ${maxLimit} saved leads, stopping...`);
+          break;
+        }
       } else {
         duplicateCount++;
       }
     }
     
     console.log(`✅ Summary - Saved: ${savedCount}, Duplicates: ${duplicateCount}, Filtered: ${filteredCount}`);
+    return savedCount;
   }
 
   private async updateJobStatus(

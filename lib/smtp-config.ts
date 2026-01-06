@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
+import { logError } from '@/lib/logger';
 
 interface SmtpConfig {
   host: string;
@@ -50,7 +51,7 @@ export async function getUserSmtpConfig(userId: string): Promise<SmtpConfig | nu
 
     return null;
   } catch (error) {
-    console.error('Error getting user SMTP config:', error);
+    logError(error, { context: 'Error getting user SMTP config' });
     return null;
   }
 }
@@ -98,7 +99,7 @@ export async function getUserFromEmail(userId: string): Promise<string> {
       ''
     );
   } catch (error) {
-    console.error('Error getting user from email:', error);
+    logError(error, { context: 'Error getting user from email' });
     return process.env.SMTP_FROM || process.env.SMTP_USER || '';
   }
 }

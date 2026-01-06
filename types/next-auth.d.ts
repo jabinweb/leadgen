@@ -9,6 +9,8 @@ declare module 'next-auth' {
       image?: string;
       role: string;
     };
+    accessToken?: string;
+    refreshToken?: string;
   }
 
   interface User {
@@ -19,5 +21,8 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     role: string;
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
   }
 }

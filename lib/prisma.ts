@@ -7,7 +7,16 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: ['query'],
+    log: process.env.NODE_ENV === 'production' 
+      ? ['error', 'warn']
+      : ['query', 'error', 'warn'],
   });
+
+// Graceful shutdown
+if (typeof window === 'undefined') {
+  process.on('beforeExit', async () => {
+    await prisma.$disconnect();
+  });
+}
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

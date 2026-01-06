@@ -21,7 +21,8 @@ import {
   List,
   MailOpen,
   Star,
-  Trash2
+  Trash2,
+  BookOpen
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -36,6 +37,9 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Calendar', href: '/dashboard/calendar', icon: BarChart3 },
+  { name: 'Team', href: '/dashboard/team', icon: Users },
   { name: 'Leads', href: '/dashboard/leads', icon: Users },
   { name: 'Duplicates', href: '/dashboard/duplicates', icon: Copy },
   { 
@@ -53,10 +57,15 @@ const navigation: NavigationItem[] = [
       { name: 'Email Settings', href: '/dashboard/emails/settings', icon: Settings },
     ]
   },
+  { name: 'Sequences', href: '/dashboard/sequences', icon: Send },
+  { name: 'Tasks', href: '/dashboard/tasks', icon: List },
+  { name: 'Deals', href: '/dashboard/deals', icon: CreditCard },
+  { name: 'Email Templates', href: '/dashboard/email-templates', icon: FileText },
   { name: 'Scraping Jobs', href: '/dashboard/scraping', icon: Search },
   { name: 'New Scraping Job', href: '/dashboard/scraping/new', icon: PlayCircle },
   // { name: 'Export', href: '/dashboard/export', icon: Download },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+  { name: 'Documentation', href: '/dashboard/docs', icon: BookOpen },
   { 
     name: 'Settings', 
     href: '/dashboard/settings', 

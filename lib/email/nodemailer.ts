@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { decrypt } from '@/lib/encryption';
+import { logError, logInfo } from '@/lib/logger';
 
 interface SmtpConfig {
   host: string;
@@ -74,14 +75,14 @@ export async function sendEmail(options: SendEmailOptions) {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log('Email sent:', info.messageId);
+    logInfo('Email sent', { messageId: info.messageId });
     return {
       success: true,
       messageId: info.messageId,
       response: info.response,
     };
   } catch (error) {
-    console.error('Error sending email:', error);
+    logError(error, { context: 'Error sending email' });
     throw error;
   }
 }

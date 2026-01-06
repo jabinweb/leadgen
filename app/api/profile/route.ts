@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { encrypt } from '@/lib/encryption';
+import { logInfo, logError } from '@/lib/logger';
+import { handleApiError, ApiErrors } from '@/lib/api-error-handler';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      throw ApiErrors.unauthorized();
     }
+
+    logInfo('Fetching user profile', { userId: session.user.id });
 
     const profile = await prisma.userProfile.findUnique({
       where: { userId: session.user.id },
@@ -36,6 +40,7 @@ export async function GET(request: NextRequest) {
         imapSecure: true,
         imapUser: '',
         aiModel: 'gemini-2.0-flash',
+        preferredCurrency: 'USD',
         isComplete: false,
       });
     }
@@ -50,8 +55,7 @@ export async function GET(request: NextRequest) {
       googlePlacesApiKey: googlePlacesApiKey ? '••••••••' : '',
     });
   } catch (error) {
-    console.error('Error fetching profile:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, { endpoint: 'GET /api/profile' });
   }
 }
 
@@ -59,7 +63,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      throw ApiErrors.unauthorized();
     }
 
     const data = await request.json();
@@ -87,33 +91,36 @@ export async function POST(request: NextRequest) {
       geminiApiKey,
       googlePlacesApiKey,
       aiModel,
+      preferredCurrency,
     } = data;
+
+    logInfo('Updating user profile', { userId: session.user.id });
 
     // Encrypt SMTP password if provided (skip placeholder bullets)
     let encryptedSmtpPassword: string | undefined;
     if (smtpPassword && smtpPassword !== '••••••••') {
       encryptedSmtpPassword = encrypt(smtpPassword);
-      console.log('SMTP password encrypted');
+      logInfo('SMTP password encrypted', { userId: session.user.id });
     }
 
     // Encrypt IMAP password if provided (skip placeholder bullets)
     let encryptedImapPassword: string | undefined;
     if (imapPassword && imapPassword !== '••••••••') {
       encryptedImapPassword = encrypt(imapPassword);
-      console.log('IMAP password encrypted');
+      logInfo('IMAP password encrypted', { userId: session.user.id });
     }
 
     // Encrypt API keys if provided (skip placeholder bullets)
     let encryptedGeminiApiKey: string | undefined;
     if (geminiApiKey && geminiApiKey !== '••••••••') {
       encryptedGeminiApiKey = encrypt(geminiApiKey);
-      console.log('Gemini API key encrypted');
+      logInfo('Gemini API key encrypted', { userId: session.user.id });
     }
 
     let encryptedGooglePlacesApiKey: string | undefined;
     if (googlePlacesApiKey && googlePlacesApiKey !== '••••••••') {
       encryptedGooglePlacesApiKey = encrypt(googlePlacesApiKey);
-      console.log('Google Places API key encrypted');
+      logInfo('Google Places API key encrypted', { userId: session.user.id });
     }
 
     // Check if profile is complete
@@ -161,6 +168,7 @@ export async function POST(request: NextRequest) {
         geminiApiKey: encryptedGeminiApiKey || existingProfile?.geminiApiKey, // Keep existing if not updating
         googlePlacesApiKey: encryptedGooglePlacesApiKey || existingProfile?.googlePlacesApiKey, // Keep existing if not updating
         aiModel: aiModel || 'gemini-2.0-flash',
+        preferredCurrency: preferredCurrency || 'USD',
         isComplete,
         updatedAt: new Date(),
       },
@@ -189,13 +197,21 @@ export async function POST(request: NextRequest) {
         geminiApiKey: encryptedGeminiApiKey,
         googlePlacesApiKey: encryptedGooglePlacesApiKey,
         aiModel: aiModel || 'gemini-2.0-flash',
+        preferredCurrency: preferredCurrency || 'USD',
         isComplete,
       },
     });
 
+    logInfo('Profile updated successfully', { 
+      userId: session.user.id,
+      isComplete: profile.isComplete 
+    });
+
     return NextResponse.json(profile);
   } catch (error) {
-    console.error('Error updating profile:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return handleApiError(error, { 
+      endpoint: 'POST /api/profile',
+      userId: (await auth())?.user?.id 
+    });
   }
 }

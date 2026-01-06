@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { logError } from '@/lib/logger';
 
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
@@ -89,7 +90,7 @@ Do not include any other text or explanations.`;
       tone,
     };
   } catch (error) {
-    console.error('Error generating cold email:', error);
+    logError(error, { context: 'Error generating cold email' });
     
     // Fallback template
     const signature = userCompany || '[YOUR_COMPANY]';

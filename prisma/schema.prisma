@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Account {
@@ -47,7 +48,8 @@ model User {
   accounts        Account[]
   sessions        Session[]
   scrapingJobs    ScrapingJob[]
-  leads           Lead[]
+  leads           Lead[]           @relation("LeadCreator")
+  assignedLeads   Lead[]           @relation("LeadAssignee")
   emailCampaigns  EmailCampaign[]
   emailTemplates  EmailTemplate[]
   emailDrafts     EmailDraft[]
@@ -56,6 +58,13 @@ model User {
   profile         UserProfile?
   subscription    Subscription?
   usage           UsageTracking?
+  sequences       EmailSequence[]
+  tasks           Task[]           @relation("TaskCreator")
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  deals           Deal[]           @relation("DealCreator")
+  assignedDeals   Deal[]           @relation("DealAssignee")
+  workflows       Workflow[]
+  calendarEvents  CalendarEvent[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -95,6 +104,9 @@ model UserProfile {
   
   // AI Model Configuration
   aiModel           String?  @default("gemini-2.0-flash") // gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
+  
+  // Currency Configuration
+  preferredCurrency String?  @default("USD") // USD, EUR, GBP, INR, etc.
   
   isComplete        Boolean  @default(false)
   createdAt         DateTime @default(now())
@@ -140,6 +152,7 @@ model Lead {
   sourceUrl       String?     // Original URL where data was found
   scrapingJobId   String?
   userId          String
+  assignedToId    String?     // Team member assigned to this lead
   status          LeadStatus  @default(NEW)
   isVerified      Boolean     @default(false)
   isEnriched      Boolean     @default(false)
@@ -149,16 +162,24 @@ model Lead {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  scrapingJob       ScrapingJob?       @relation(fields: [scrapingJobId], references: [id])
-  enrichmentData    LeadEnrichment?
-  emailCampaignLeads EmailCampaignLead[]
-  emailLogs         EmailLog[]
-  activities        LeadActivity[]
+  user                User                  @relation("LeadCreator", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo          User?                 @relation("LeadAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  scrapingJob         ScrapingJob?          @relation(fields: [scrapingJobId], references: [id])
+  enrichmentData      LeadEnrichment?
+  emailCampaignLeads  EmailCampaignLead[]
+  emailLogs           EmailLog[]
+  activities          LeadActivity[]
+  sequenceEnrollments SequenceEnrollment[]
+  tasks               Task[]
+  deals               Deal[]
+  contacts            Contact[]
+  score               LeadScore?
+  calendarEvents      CalendarEvent[]
 
   @@index([companyName])
   @@index([industry])
   @@index([userId])
+  @@index([assignedToId])
   @@index([status])
   @@index([createdAt])
 }
@@ -334,7 +355,9 @@ model EmailTemplate {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, name])
   @@index([userId])
+  @@index([category])
 }
 
 model ScrapingJob {
@@ -556,4 +579,363 @@ enum EmailLogStatus {
   BOUNCED
   FAILED
   REPLIED
+}
+
+// ============================================
+// CRM CORE MODELS - Email Sequences
+// ============================================
+
+model EmailSequence {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments SequenceEnrollment[]
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model SequenceStep {
+  id         String  @id @default(cuid())
+  sequenceId String
+  stepNumber Int
+  name       String
+  delayDays  Int     @default(0)
+  delayHours Int     @default(0)
+  subject    String
+  body       String  @db.Text
+  condition  String? // NO_REPLY, NO_OPEN, ALWAYS, CLICKED, REPLIED
+
+  sequence EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, stepNumber])
+  @@index([sequenceId])
+}
+
+model SequenceEnrollment {
+  id             String    @id @default(cuid())
+  sequenceId     String
+  leadId         String
+  currentStep    Int       @default(0)
+  status         String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, STOPPED
+  lastStepSentAt DateTime?
+  nextStepDue    DateTime?
+  completedAt    DateTime?
+  stoppedReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  sequence EmailSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  lead     Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, leadId])
+  @@index([nextStepDue])
+  @@index([status])
+  @@index([sequenceId])
+  @@index([leadId])
+}
+
+// ============================================
+// CRM CORE MODELS - Task Management
+// ============================================
+
+model Task {
+  id          String    @id @default(cuid())
+  userId      String
+  assignedToId String?  // Team member assigned to this task
+  leadId      String?
+  dealId      String?
+  title       String
+  description String?   @db.Text
+  type        TaskType  @default(TODO)
+  priority    Priority  @default(MEDIUM)
+  status      TaskStatus @default(PENDING)
+  dueDate     DateTime?
+  reminderAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user       User  @relation("TaskCreator", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lead       Lead? @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal       Deal? @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([assignedToId])
+  @@index([leadId])
+  @@index([dealId])
+  @@index([dueDate])
+  @@index([status])
+  @@index([type])
+}
+
+enum TaskType {
+  CALL
+  EMAIL
+  MEETING
+  FOLLOW_UP
+  TODO
+  DEMO
+  PROPOSAL
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================
+// CRM CORE MODELS - Deal Pipeline
+// ============================================
+
+model Deal {
+  id                String    @id @default(cuid())
+  userId            String
+  assignedToId      String?   // Team member assigned to this deal
+  leadId            String
+  title             String
+  value             Float     @default(0)
+  currency          String    @default("USD")
+  stage             DealStage @default(PROSPECTING)
+  probability       Int       @default(50) // 0-100
+  expectedCloseDate DateTime?
+  actualCloseDate   DateTime?
+  lostReason        String?
+  notes             String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user       User   @relation("DealCreator", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo User?  @relation("DealAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lead       Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tasks      Task[]
+  calendarEvents CalendarEvent[]
+
+  @@index([userId])
+  @@index([assignedToId])
+  @@index([leadId])
+  @@index([stage])
+  @@index([expectedCloseDate])
+}
+
+enum DealStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+// ============================================
+// CRM CORE MODELS - Lead Scoring
+// ============================================
+
+model LeadScore {
+  id               String   @id @default(cuid())
+  leadId           String   @unique
+  totalScore       Int      @default(0) // 0-100
+  engagementScore  Int      @default(0) // 0-35 (email opens, clicks, replies)
+  dataQualityScore Int      @default(0) // 0-25 (complete profile)
+  fitScore         Int      @default(0) // 0-40 (industry, size, behavior)
+  lastCalculatedAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([totalScore])
+  @@index([leadId])
+}
+
+// ============================================
+// CRM CORE MODELS - Email Queue & Rate Limiting
+// ============================================
+
+model EmailQueue {
+  id           String    @id @default(cuid())
+  userId       String
+  leadId       String?
+  campaignId   String?
+  sequenceId   String?
+  priority     Int       @default(5) // 1-10 (1=highest)
+  to           String
+  subject      String
+  body         String    @db.Text
+  scheduledFor DateTime
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(3)
+  status       QueueStatus @default(PENDING)
+  sentAt       DateTime?
+  errorMessage String?
+  messageId    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([scheduledFor])
+  @@index([userId])
+  @@index([priority])
+}
+
+enum QueueStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// CRM CORE MODELS - Unsubscribe Compliance
+// ============================================
+
+model UnsubscribeList {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  userId         String?
+  leadId         String?
+  reason         String?
+  source         String? // LINK_CLICK, MANUAL, BOUNCE, COMPLAINT
+  unsubscribedAt DateTime @default(now())
+
+  @@index([email])
+  @@index([userId])
+}
+
+// ============================================
+// CRM CORE MODELS - Contact Management
+// ============================================
+
+model Contact {
+  id          String    @id @default(cuid())
+  leadId      String
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  jobTitle    String?
+  department  String?
+  isPrimary   Boolean   @default(false)
+  linkedinUrl String?
+  twitterUrl  String?
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([email])
+  @@index([isPrimary])
+}
+
+// ============================================
+// CRM CORE MODELS - Workflow Automation
+// ============================================
+
+model Workflow {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String?   @db.Text
+  trigger     String    // LEAD_CREATED, STATUS_CHANGED, EMAIL_OPENED, TAG_ADDED, etc.
+  conditions  Json      // Conditions to check
+  actions     Json      // Actions to perform
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions WorkflowExecution[]
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([trigger])
+}
+
+model WorkflowExecution {
+  id         String   @id @default(cuid())
+  workflowId String
+  leadId     String?
+  status     String   // SUCCESS, FAILED, PARTIAL
+  result     Json?
+  executedAt DateTime @default(now())
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([executedAt])
+  @@index([status])
+}
+
+// ============================================
+// CALENDAR INTEGRATION
+// ============================================
+
+model CalendarEvent {
+  id                 String            @id @default(cuid())
+  userId             String
+  leadId             String?
+  dealId             String?
+  title              String
+  description        String?           @db.Text
+  location           String?
+  eventType          CalendarEventType @default(MEETING)
+  startTime          DateTime
+  endTime            DateTime
+  allDay             Boolean           @default(false)
+  attendees          Json?             // Array of email addresses
+  meetingLink        String?           // Zoom, Google Meet, etc.
+  googleCalendarId   String?           @unique
+  googleCalendarSync Boolean           @default(false)
+  reminderMinutes    Int?              // Minutes before event to remind
+  status             CalendarStatus    @default(SCHEDULED)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  deal Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([leadId])
+  @@index([dealId])
+  @@index([startTime])
+  @@index([status])
+  @@index([googleCalendarId])
+}
+
+enum CalendarEventType {
+  MEETING
+  CALL
+  DEMO
+  FOLLOW_UP
+  PRESENTATION
+  NEGOTIATION
+  CLOSING
+  OTHER
+}
+
+enum CalendarStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
 }

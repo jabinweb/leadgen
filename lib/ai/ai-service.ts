@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { logInfo, logError } from '@/lib/logger';
 
 /**
  * Get AI client with custom API key
@@ -6,8 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 export function getAIClient(apiKey?: string) {
   const key = (apiKey || process.env.GEMINI_API_KEY || '').trim();
   
-  console.log('[getAIClient] Received apiKey:', apiKey ? apiKey.substring(0, 15) + '...' : 'undefined');
-  console.log('[getAIClient] Key length:', key?.length);
+  logInfo('Checking API key', { hasApiKey: !!apiKey, keyLength: key?.length });
   
   // Debug: Check for non-ASCII characters
   if (key) {
@@ -19,8 +19,8 @@ export function getAIClient(apiKey?: string) {
       }
     }
     if (nonAsciiChars.length > 0) {
-      console.error('[getAIClient] Found non-ASCII characters:', nonAsciiChars);
-      console.error('[getAIClient] Falling back to env key');
+      logError(new Error('API key contains non-ASCII characters'), { nonAsciiChars });
+      logInfo('Falling back to environment key');
       const envKey = process.env.GEMINI_API_KEY;
       if (!envKey) {
         throw new Error('Custom API key contains invalid characters and no GEMINI_API_KEY environment variable is set. Please check your API key in settings or set GEMINI_API_KEY in your .env file.');
@@ -33,7 +33,7 @@ export function getAIClient(apiKey?: string) {
     throw new Error('No API key provided. Please set your Gemini API key in settings or add GEMINI_API_KEY to your .env file.');
   }
   
-  console.log('[getAIClient] Using valid key');
+  logInfo('Using valid API key');
   return new GoogleGenAI({ apiKey: key });
 }
 
@@ -81,10 +81,10 @@ export async function listAvailableModels(apiKey?: string): Promise<Array<{ name
         description: model.description || '',
       }));
 
-    console.log('Filtered text generation models:', generativeModels.length);
+    logInfo('Filtered text generation models', { count: generativeModels.length });
     return generativeModels;
   } catch (error: any) {
-    console.error('Error listing models:', error);
+    logError(error, { context: 'Error listing models' });
     throw new Error(error.message || 'Failed to list available models');
   }
 }
@@ -516,6 +516,290 @@ Return a JSON object with:
   "subject": "compelling subject line (under 60 chars)",
   "content": "email body with {{template}} variables",
   "insights": "brief explanation of the strategy and why it works for this audience"
+}`;
+
+  const response = await client.models.generateContent({
+    model,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('No response from AI');
+  }
+
+  return extractJSON(response.text);
+}
+
+/**
+ * Generate complete email sequence with AI
+ */
+export async function generateSequence(params: {
+  goal: string;
+  targetPersona: string;
+  tone?: 'professional' | 'casual' | 'friendly' | 'formal';
+  stepCount?: number;
+  companyInfo?: string;
+  productService?: string;
+  model?: string;
+  apiKey?: string;
+}): Promise<{
+  name: string;
+  description: string;
+  steps: Array<{
+    order: number;
+    subject: string;
+    body: string;
+    delayDays: number;
+    delayHours: number;
+    condition?: 'NO_REPLY' | 'NO_OPEN' | 'OPENED' | 'CLICKED';
+    reasoning: string;
+  }>;
+}> {
+  const {
+    goal,
+    targetPersona,
+    tone = 'professional',
+    stepCount = 3,
+    companyInfo = '',
+    productService = '',
+    model = 'gemini-2.0-flash-exp',
+    apiKey,
+  } = params;
+
+  const client = getAIClient(apiKey);
+
+  const prompt = `You are an expert email marketing strategist. Create a ${stepCount}-step automated email sequence.
+
+**Goal:** ${goal}
+**Target Persona:** ${targetPersona}
+**Tone:** ${tone}
+${companyInfo ? `**Company Info:** ${companyInfo}` : ''}
+${productService ? `**Product/Service:** ${productService}` : ''}
+
+Create a strategic email sequence that:
+1. Starts with value/problem awareness (not a hard sell)
+2. Builds trust and authority
+3. Addresses objections
+4. Includes clear calls-to-action
+5. Uses personalization variables: {{companyName}}, {{contactName}}, {{email}}
+
+For each step, provide:
+- order: Step number (1, 2, 3...)
+- subject: Compelling subject line
+- body: Full email body (250-400 words)
+- delayDays: Days to wait after previous step (0 for first step)
+- delayHours: Additional hours to wait (0-23)
+- condition: When to send (NO_REPLY, NO_OPEN, OPENED, CLICKED, or null for unconditional)
+- reasoning: Why this step works in the sequence
+
+Return JSON in this exact format:
+{
+  "name": "Descriptive sequence name",
+  "description": "Brief sequence description",
+  "steps": [
+    {
+      "order": 1,
+      "subject": "Subject line",
+      "body": "Email body with {{variables}}",
+      "delayDays": 0,
+      "delayHours": 0,
+      "condition": null,
+      "reasoning": "Why this step"
+    }
+  ]
+}`;
+
+  const response = await client.models.generateContent({
+    model,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('No response from AI');
+  }
+
+  return extractJSON(response.text);
+}
+
+/**
+ * Suggest next best tasks based on lead/deal context
+ */
+export async function suggestTasks(params: {
+  context: {
+    leadId?: string;
+    dealId?: string;
+    leadData?: {
+      companyName: string;
+      status: string;
+      lastContacted?: Date;
+      emailOpens?: number;
+      emailClicks?: number;
+      emailReplies?: number;
+    };
+    dealData?: {
+      title: string;
+      stage: string;
+      value: number;
+      daysInStage?: number;
+      lastActivity?: Date;
+    };
+    sequenceEnrollments?: Array<{
+      sequenceName: string;
+      currentStep: number;
+      lastSentAt?: Date;
+    }>;
+  };
+  maxSuggestions?: number;
+  model?: string;
+  apiKey?: string;
+}): Promise<{
+  suggestions: Array<{
+    title: string;
+    type: 'CALL' | 'EMAIL' | 'MEETING' | 'FOLLOW_UP' | 'TODO' | 'DEMO' | 'PROPOSAL';
+    priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+    dueInDays: number;
+    reasoning: string;
+    description?: string;
+  }>;
+  insights: string;
+}> {
+  const {
+    context,
+    maxSuggestions = 3,
+    model = 'gemini-2.0-flash-exp',
+    apiKey,
+  } = params;
+
+  const client = getAIClient(apiKey);
+
+  const contextStr = JSON.stringify(context, null, 2);
+
+  const prompt = `You are a sales coaching AI. Analyze this lead/deal context and suggest the next best tasks.
+
+**Context:**
+${contextStr}
+
+Analyze:
+1. Engagement level (email opens, clicks, replies)
+2. Time since last contact
+3. Deal stage and duration
+4. Sequence performance
+
+Suggest up to ${maxSuggestions} specific, actionable tasks that will move this lead/deal forward.
+
+For each task:
+- title: Clear, actionable task name (e.g., "Follow up on proposal")
+- type: CALL, EMAIL, MEETING, FOLLOW_UP, TODO, DEMO, or PROPOSAL
+- priority: LOW, MEDIUM, HIGH, or URGENT (based on urgency and deal value)
+- dueInDays: How many days from now (0 = today)
+- reasoning: Why this task matters now
+- description: Optional details/talking points
+
+Also provide overall insights about this lead/deal's health.
+
+Return JSON:
+{
+  "suggestions": [
+    {
+      "title": "Task name",
+      "type": "CALL",
+      "priority": "HIGH",
+      "dueInDays": 1,
+      "reasoning": "Why this matters",
+      "description": "Additional context"
+    }
+  ],
+  "insights": "Overall analysis of lead/deal health and recommendations"
+}`;
+
+  const response = await client.models.generateContent({
+    model,
+    contents: prompt,
+  });
+
+  if (!response.text) {
+    throw new Error('No response from AI');
+  }
+
+  return extractJSON(response.text);
+}
+
+/**
+ * Analyze deal and provide coaching insights
+ */
+export async function coachDeal(params: {
+  dealData: {
+    title: string;
+    stage: string;
+    value: number;
+    probability: number;
+    createdAt: Date;
+    daysInCurrentStage: number;
+    activities?: Array<{
+      type: string;
+      date: Date;
+      notes?: string;
+    }>;
+  };
+  leadData?: {
+    companyName: string;
+    industry?: string;
+    emailEngagement?: {
+      opens: number;
+      clicks: number;
+      replies: number;
+    };
+  };
+  model?: string;
+  apiKey?: string;
+}): Promise<{
+  winProbabilityAI: number;
+  risks: Array<{ risk: string; severity: 'HIGH' | 'MEDIUM' | 'LOW' }>;
+  recommendations: Array<{ action: string; impact: string; priority: 'HIGH' | 'MEDIUM' | 'LOW' }>;
+  nextBestAction: string;
+  insights: string;
+}> {
+  const {
+    dealData,
+    leadData,
+    model = 'gemini-2.0-flash-exp',
+    apiKey,
+  } = params;
+
+  const client = getAIClient(apiKey);
+
+  const prompt = `You are an expert sales coach. Analyze this deal and provide strategic guidance.
+
+**Deal Information:**
+${JSON.stringify(dealData, null, 2)}
+
+${leadData ? `**Lead Information:**
+${JSON.stringify(leadData, null, 2)}` : ''}
+
+Analyze:
+1. Deal velocity (time in current stage vs. average)
+2. Engagement signals (activity frequency, email engagement)
+3. Stage-appropriate probability
+4. Red flags or risks
+
+Provide:
+- winProbabilityAI: Your AI-calculated win probability (0-100)
+- risks: Potential deal blockers or concerns
+- recommendations: Specific actions to increase win rate
+- nextBestAction: Single most important next step
+- insights: Overall deal health analysis
+
+Return JSON:
+{
+  "winProbabilityAI": 65,
+  "risks": [
+    { "risk": "No activity in 14 days", "severity": "HIGH" }
+  ],
+  "recommendations": [
+    { "action": "Schedule demo", "impact": "Increases engagement", "priority": "HIGH" }
+  ],
+  "nextBestAction": "Send personalized case study",
+  "insights": "Deal is healthy but needs momentum"
 }`;
 
   const response = await client.models.generateContent({

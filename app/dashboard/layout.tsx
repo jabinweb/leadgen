@@ -7,6 +7,8 @@ import { Navbar } from '@/components/layout/navbar';
 import { Sidebar } from '@/components/layout/sidebar';
 import { UsageBanner } from '@/components/subscription/usage-banner';
 import { EmailReplyChecker } from '@/components/email/email-reply-checker';
+import { PWAInstallPrompt } from '@/components/pwa/install-prompt';
+import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration';
 import { Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -44,6 +46,8 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen">
+      <ServiceWorkerRegistration />
+      <PWAInstallPrompt />
       <Navbar />
       <EmailReplyChecker />
       

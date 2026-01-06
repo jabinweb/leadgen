@@ -27,6 +27,15 @@ export async function GET(
             status: true,
           },
         },
+        score: {
+          select: {
+            totalScore: true,
+            engagementScore: true,
+            dataQualityScore: true,
+            fitScore: true,
+            lastCalculatedAt: true,
+          },
+        },
       },
     });
 

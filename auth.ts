@@ -10,6 +10,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          scope: 'openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events',
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
     }),
     Nodemailer({
       server: {
@@ -28,10 +35,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     verifyRequest: '/auth/verify-request',
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id
         token.role = user.role || "user"
+      }
+      // Store Google access/refresh tokens
+      if (account?.provider === 'google') {
+        token.accessToken = account.access_token
+        token.refreshToken = account.refresh_token
+        token.expiresAt = account.expires_at
       }
       return token
     },
@@ -39,6 +52,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string
         session.user.role = token.role as string
+        session.accessToken = token.accessToken as string
+        session.refreshToken = token.refreshToken as string
       }
       return session
     },

@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { logError, logInfo, logWarning } from './logger';
 
 export interface EmailLogData {
   userId: string;
@@ -31,7 +32,7 @@ export async function createEmailLog(data: EmailLogData) {
     
     return log;
   } catch (error) {
-    console.error('Error creating email log:', error);
+    logError(error, { context: 'Error creating email log' });
     throw error;
   }
 }
@@ -73,7 +74,7 @@ export async function updateEmailLogStatus(
     
     return log;
   } catch (error) {
-    console.error('Error updating email log:', error);
+    logError(error, { context: 'Error updating email log' });
     throw error;
   }
 }
@@ -95,7 +96,7 @@ export async function trackEmailOpen(logId: string) {
     
     return log;
   } catch (error) {
-    console.error('Error tracking email open:', error);
+    logError(error, { context: 'Error tracking email open' });
     throw error;
   }
 }
@@ -117,7 +118,7 @@ export async function trackEmailClick(logId: string) {
     
     return log;
   } catch (error) {
-    console.error('Error tracking email click:', error);
+    logError(error, { context: 'Error tracking email click' });
     throw error;
   }
 }
@@ -149,11 +150,11 @@ export async function trackEmailReply(
       const isDifferent = existingLog.replyBody !== replyBody;
       
       if (!isNewer && !isDifferent) {
-        console.log(`Reply already tracked for ${logId}, skipping duplicate`);
+        logInfo('Reply already tracked, skipping duplicate', { logId });
         return existingLog as any;
       }
       
-      console.log(`Updating reply for ${logId} (newer: ${isNewer}, different: ${isDifferent})`);
+      logInfo('Updating reply', { logId, isNewer, isDifferent });
     }
 
     const log = await prisma.emailLog.update({
@@ -168,7 +169,7 @@ export async function trackEmailReply(
     
     return log;
   } catch (error) {
-    console.error('Error tracking email reply:', error);
+    logError(error, { context: 'Error tracking email reply' });
     throw error;
   }
 }
@@ -187,7 +188,7 @@ export async function findEmailLogForReply(
     // PRIORITY 1: If we have In-Reply-To header, use it for EXACT matching
     // This is the most reliable method - it matches the Message-ID we sent
     if (inReplyTo) {
-      console.log(`🎯 Using In-Reply-To header for exact matching: ${inReplyTo}`);
+      logInfo('Using In-Reply-To header for exact matching', { inReplyTo });
       
       const where: any = {
         messageId: inReplyTo, // Match our sent email's Message-ID with reply's In-Reply-To
@@ -204,16 +205,16 @@ export async function findEmailLogForReply(
       });
       
       if (exactMatch) {
-        console.log(`✅ EXACT MATCH found via Message-ID: ${exactMatch.subject}`);
+        logInfo('Exact match found via Message-ID', { subject: exactMatch.subject });
         return exactMatch;
       }
       
-      console.log(`⚠️  No email found with Message-ID: ${inReplyTo}`);
+      logInfo('No email found with Message-ID', { messageId: inReplyTo });
     }
     
     // PRIORITY 2: Fallback to subject matching only if no In-Reply-To header
     // This is less reliable but handles edge cases where headers are missing
-    console.log(`📧 Falling back to subject matching for: ${replySubject}`);
+    logInfo('Falling back to subject matching', { replySubject });
     
     const where: any = {
       to: replyFromEmail,
@@ -236,7 +237,7 @@ export async function findEmailLogForReply(
     });
 
     if (logs.length === 0) {
-      console.log(`❌ No sent emails found to: ${replyFromEmail}`);
+      logInfo('No sent emails found to recipient', { email: replyFromEmail });
       return null;
     }
     
@@ -253,7 +254,7 @@ export async function findEmailLogForReply(
     });
     
     if (exactMatch) {
-      console.log(`✅ EXACT subject match found: ${exactMatch.subject}`);
+      logInfo('Exact subject match found', { subject: exactMatch.subject });
       return exactMatch;
     }
     
@@ -273,7 +274,7 @@ export async function findEmailLogForReply(
       const similarity = matchingWords.length / Math.min(cleanWords.length, logWords.length);
       
       if (similarity >= 0.9) {
-        console.log(`✅ High-similarity match (${(similarity * 100).toFixed(0)}%): "${logSubject}"`);
+        logInfo('High-similarity match found', { similarity: (similarity * 100).toFixed(0) + '%', subject: logSubject });
         return true;
       }
       
@@ -285,13 +286,14 @@ export async function findEmailLogForReply(
     }
     
     // NO MATCH - Don't force it to any email
-    console.warn(`⚠️  No good subject match found for reply: "${replySubject}"`);
-    console.warn(`   Candidate subjects: ${logs.map(l => `"${l.subject}"`).join(', ')}`);
-    console.warn(`   SKIPPING this reply - it belongs to an email not in our system`);
+    logWarning('No good subject match found for reply', { 
+      replySubject, 
+      candidates: logs.map(l => l.subject) 
+    });
     
     return null; // Don't force wrong matches
   } catch (error) {
-    console.error('Error finding email log for reply:', error);
+    logError(error, { context: 'Error finding email log for reply' });
     throw error;
   }
 }
@@ -347,7 +349,7 @@ export async function getUserEmailLogs(
     
     return { logs, total };
   } catch (error) {
-    console.error('Error fetching email logs:', error);
+    logError(error, { context: 'Error fetching email logs' });
     throw error;
   }
 }
