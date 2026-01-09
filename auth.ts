@@ -62,6 +62,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session
     },
+    async signIn({ user, account, profile }) {
+      // Log sign-in attempts for debugging
+      console.log('Sign-in attempt:', { provider: account?.provider, email: user.email })
+      return true
+    },
+  },
+  events: {
+    async signIn({ user }) {
+      console.log('User signed in:', user.email)
+    },
+    async signOut({ session }) {
+      console.log('User signed out')
+    },
   },
   session: {
     strategy: "jwt",

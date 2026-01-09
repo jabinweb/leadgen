@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "LeadGen CRM",
   "short_name": "LeadGen",
   "description": "Professional CRM and Lead Generation Platform",
@@ -12,15 +12,6 @@
       "src": "/icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icons/icon-512x512.png",
-      "sizes": "512x512",
-      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
