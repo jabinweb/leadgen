@@ -33,6 +33,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: '/auth/signin',
     verifyRequest: '/auth/verify-request',
+    error: '/auth/error',
   },
   callbacks: {
     async jwt({ token, user, account }) {
@@ -61,4 +62,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
+  debug: process.env.NODE_ENV === 'development',
 })
