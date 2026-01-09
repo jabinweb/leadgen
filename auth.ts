@@ -72,7 +72,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user }) {
       console.log('User signed in:', user.email)
     },
-    async signOut({ session }) {
+    async signOut() {
       console.log('User signed out')
     },
   },
