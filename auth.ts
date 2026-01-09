@@ -67,4 +67,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     strategy: "jwt",
   },
   debug: process.env.NODE_ENV === 'development',
+  trustHost: true,
 })
