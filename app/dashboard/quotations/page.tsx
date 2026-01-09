@@ -101,13 +101,13 @@ export default function QuotationsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Quotations</h1>
-          <p className="text-gray-500">Manage your quotations and proposals</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Quotations</h1>
+          <p className="text-sm md:text-base text-gray-500">Manage your quotations and proposals</p>
         </div>
-        <Button onClick={() => router.push("/dashboard/quotations/new")}>
+        <Button onClick={() => router.push("/dashboard/quotations/new")} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Create Quotation
         </Button>
@@ -134,19 +134,20 @@ export default function QuotationsPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Valid Until</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[120px]">Number</TableHead>
+                    <TableHead className="min-w-[150px]">Title</TableHead>
+                    <TableHead className="min-w-[150px]">Customer</TableHead>
+                    <TableHead className="min-w-[100px]">Amount</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[120px]">Valid Until</TableHead>
+                    <TableHead className="min-w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {quotations.map((quotation) => (
                   <TableRow key={quotation.id}>
                     <TableCell className="font-mono">
@@ -191,7 +192,8 @@ export default function QuotationsPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

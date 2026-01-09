@@ -186,21 +186,22 @@ export default function InvoicesPage() {
               </Button>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Paid</TableHead>
-                  <TableHead>Due</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[120px]">Number</TableHead>
+                    <TableHead className="min-w-[150px]">Title</TableHead>
+                    <TableHead className="min-w-[150px]">Customer</TableHead>
+                    <TableHead className="min-w-[100px]">Amount</TableHead>
+                    <TableHead className="min-w-[100px]">Paid</TableHead>
+                    <TableHead className="min-w-[100px]">Due</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[120px]">Due Date</TableHead>
+                    <TableHead className="min-w-[80px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {invoices.map((invoice) => (
                   <TableRow key={invoice.id}>
                     <TableCell className="font-mono">
@@ -256,7 +257,8 @@ export default function InvoicesPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

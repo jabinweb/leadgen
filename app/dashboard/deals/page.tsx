@@ -125,13 +125,13 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-4 md:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Deal Pipeline</h1>
-          <p className="text-muted-foreground">Track deals through your sales process</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Deal Pipeline</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Track deals through your sales process</p>
         </div>
-        <Button>
+        <Button className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           New Deal
         </Button>
@@ -139,7 +139,7 @@ export default function DealsPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Pipeline</CardTitle>

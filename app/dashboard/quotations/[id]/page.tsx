@@ -148,33 +148,33 @@ export default function QuotationDetailPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
+    <div className="container mx-auto p-4 md:p-6 max-w-5xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2 sm:gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push('/dashboard/quotations')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">{quotation.quotationNumber}</h1>
-            <p className="text-gray-500">{quotation.title}</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">{quotation.quotationNumber}</h1>
+            <p className="text-sm md:text-base text-gray-500">{quotation.title}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           {(quotation.status === 'DRAFT' || quotation.status === 'SENT') && (
-            <Button variant="outline" onClick={() => router.push(`/dashboard/quotations/${params.id}/edit`)}>
+            <Button variant="outline" onClick={() => router.push(`/dashboard/quotations/${params.id}/edit`)} className="flex-1 sm:flex-none">
               <Edit className="w-4 h-4 mr-2" />
               Edit
             </Button>
           )}
-          <Button variant="outline" onClick={handleDownloadPDF}>
+          <Button variant="outline" onClick={handleDownloadPDF} className="flex-1 sm:flex-none">
             <Download className="w-4 h-4 mr-2" />
-            Download PDF
+            Download
           </Button>
           {quotation.status === 'DRAFT' && (
-            <Button onClick={handleSendQuotation} disabled={sending}>
+            <Button onClick={handleSendQuotation} disabled={sending} className="flex-1 sm:flex-none">
               <Send className="w-4 h-4 mr-2" />
-              {sending ? 'Sending...' : 'Send Quotation'}
+              {sending ? 'Sending...' : 'Send'}
             </Button>
           )}
         </div>
@@ -233,16 +233,17 @@ export default function QuotationDetailPage() {
               <CardTitle>Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[150px]">Item</TableHead>
+                      <TableHead className="text-right min-w-[60px]">Qty</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Unit Price</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                   {quotation.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
@@ -264,6 +265,7 @@ export default function QuotationDetailPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
 
               <Separator className="my-4" />
 

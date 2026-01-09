@@ -210,14 +210,14 @@ export default function NewQuotationPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-4 md:py-6 px-4 md:px-6 space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Create Quotation</h1>
-          <p className="text-muted-foreground">Generate a new quotation for your customer</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Create Quotation</h1>
+          <p className="text-sm md:text-base text-muted-foreground">Generate a new quotation for your customer</p>
         </div>
         <Link href="/dashboard/quotations">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Quotations
           </Button>

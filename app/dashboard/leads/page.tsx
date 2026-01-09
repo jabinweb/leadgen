@@ -414,59 +414,67 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-4">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Leads</h2>
-        <div className="flex items-center space-x-2">
+    <div className="flex-1 space-y-4 p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Leads</h2>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {selectedLeads.length > 0 && (
             <>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground w-full sm:w-auto">
                 {selectedLeads.length} selected
               </span>
               <Button 
                 variant="default" 
                 onClick={handleBulkContact}
                 disabled={isGeneratingEmail}
+                size="sm"
+                className="flex-1 sm:flex-none"
               >
                 <Mail className="mr-2 h-4 w-4" />
-                {isGeneratingEmail ? 'Generating...' : 'Contact Selected'}
+                {isGeneratingEmail ? 'Generating...' : 'Contact'}
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => setShowEnrollSequenceDialog(true)}
+                size="sm"
+                className="hidden md:inline-flex"
               >
                 Enroll in Sequence
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => setShowCreateTaskDialog(true)}
+                size="sm"
+                className="hidden lg:inline-flex"
               >
                 Create Task
               </Button>
               <Button 
                 variant="outline" 
                 onClick={() => setShowCreateDealDialog(true)}
+                size="sm"
+                className="hidden lg:inline-flex"
               >
                 Create Deal
               </Button>
-              <Button variant="outline" onClick={handleBulkExport}>
+              <Button variant="outline" onClick={handleBulkExport} size="sm" className="hidden sm:inline-flex">
                 <Download className="mr-2 h-4 w-4" />
-                Export Selected
+                Export
               </Button>
-              <Button variant="destructive" onClick={handleBulkDelete}>
-                Delete Selected
+              <Button variant="destructive" onClick={handleBulkDelete} size="sm">
+                Delete
               </Button>
             </>
           )}
-          <Button onClick={() => setShowAddLeadDialog(true)}>
+          <Button onClick={() => setShowAddLeadDialog(true)} size="sm" className="flex-1 sm:flex-none">
             <Plus className="mr-2 h-4 w-4" />
             Add Lead
           </Button>
-          <Button variant="outline" onClick={() => handleExport('csv')}>
+          <Button variant="outline" onClick={() => handleExport('csv')} size="sm" className="hidden sm:inline-flex">
             <Download className="mr-2 h-4 w-4" />
-            Export CSV
+            CSV
           </Button>
-          <Button variant="outline" onClick={() => handleExport('json')}>
+          <Button variant="outline" onClick={() => handleExport('json')} size="sm" className="hidden md:inline-flex">
             <Download className="mr-2 h-4 w-4" />
             Export JSON
           </Button>
@@ -562,24 +570,24 @@ export default function LeadsPage() {
               Error loading leads
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]">
                       <Checkbox 
-                        checked={selectedLeads.length === data?.leads?.length && data?.leads?.length > 0}
+checked={selectedLeads.length === data?.leads?.length && data?.leads?.length > 0}
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Industry</TableHead>
-                    <TableHead>Contact Info</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Tags</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="min-w-[200px]">Company</TableHead>
+                    <TableHead className="min-w-[100px]">Industry</TableHead>
+                    <TableHead className="min-w-[150px]">Contact Info</TableHead>
+                    <TableHead className="min-w-[80px]">Score</TableHead>
+                    <TableHead className="min-w-[100px]">Source</TableHead>
+                    <TableHead className="min-w-[100px]">Status</TableHead>
+                    <TableHead className="min-w-[120px]">Tags</TableHead>
+                    <TableHead className="min-w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
