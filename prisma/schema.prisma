@@ -8,7 +8,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 model Account {
@@ -65,6 +64,8 @@ model User {
   assignedDeals   Deal[]           @relation("DealAssignee")
   workflows       Workflow[]
   calendarEvents  CalendarEvent[]
+  quotations      Quotation[]
+  invoices        Invoice[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -107,6 +108,32 @@ model UserProfile {
   
   // Currency Configuration
   preferredCurrency String?  @default("USD") // USD, EUR, GBP, INR, etc.
+  
+  // Invoice & Quotation Settings
+  companyAddress    String?
+  companyPhone      String?
+  taxId             String?
+  invoicePrefix     String?  @default("INV")
+  quotationPrefix   String?  @default("QT")
+  invoiceTerms      String?  @db.Text
+  quotationTerms    String?  @db.Text
+  
+  // Payment Details
+  bankName          String?
+  accountName       String?
+  accountNumber     String?
+  routingNumber     String?
+  swiftCode         String?
+  iban              String?
+  paymentInstructions String? @db.Text
+  
+  // Template Customization
+  templateStyle     String?  @default("modern") // modern, classic, minimal, corporate
+  primaryColor      String?  @default("#2563eb") // Hex color code
+  secondaryColor    String?  @default("#7c3aed")
+  logoUrl           String?
+  headerText        String?  @db.Text
+  footerText        String?  @db.Text
   
   isComplete        Boolean  @default(false)
   createdAt         DateTime @default(now())
@@ -175,6 +202,8 @@ model Lead {
   contacts            Contact[]
   score               LeadScore?
   calendarEvents      CalendarEvent[]
+  quotations          Quotation[]
+  invoices            Invoice[]
 
   @@index([companyName])
   @@index([industry])
@@ -511,6 +540,7 @@ model UsageTracking {
 model Payment {
   id                  String        @id @default(cuid())
   userId              String
+  invoiceId           String?
   amount              Int           // Amount in paise
   currency            String        @default("INR")
   status              PaymentStatus @default(PENDING)
@@ -522,7 +552,10 @@ model Payment {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
   @@index([userId])
+  @@index([invoiceId])
   @@index([razorpayPaymentId])
   @@index([status])
 }
@@ -727,6 +760,8 @@ model Deal {
   lead       Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
   tasks      Task[]
   calendarEvents CalendarEvent[]
+  quotations Quotation[]
+  invoices   Invoice[]
 
   @@index([userId])
   @@index([assignedToId])
@@ -938,4 +973,173 @@ enum CalendarStatus {
   CANCELLED
   NO_SHOW
   RESCHEDULED
+}
+
+// Quotations
+model Quotation {
+  id              String              @id @default(cuid())
+  quotationNumber String              @unique
+  userId          String
+  leadId          String?
+  dealId          String?
+  
+  title           String
+  description     String?             @db.Text
+  validUntil      DateTime
+  
+  currency        String              @default("USD")
+  subtotal        Float               @default(0)
+  taxRate         Float               @default(0)
+  taxAmount       Float               @default(0)
+  discount        Float               @default(0)
+  total           Float               @default(0)
+  
+  status          QuotationStatus     @default(DRAFT)
+  
+  // Customer details
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+  customerAddress String?             @db.Text
+  
+  // Additional info
+  notes           String?             @db.Text
+  terms           String?             @db.Text
+  
+  // Tracking
+  sentAt          DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  expiresAt       DateTime?
+  
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead            Lead?               @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  deal            Deal?               @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  items           QuotationItem[]
+  invoice         Invoice?
+  
+  @@index([userId])
+  @@index([leadId])
+  @@index([dealId])
+  @@index([status])
+  @@index([quotationNumber])
+}
+
+model QuotationItem {
+  id          String     @id @default(cuid())
+  quotationId String
+  
+  name        String
+  description String?    @db.Text
+  quantity    Float      @default(1)
+  unitPrice   Float
+  amount      Float
+  
+  createdAt   DateTime   @default(now())
+  
+  quotation   Quotation  @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  
+  @@index([quotationId])
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+// Invoices
+model Invoice {
+  id            String           @id @default(cuid())
+  invoiceNumber String           @unique
+  userId        String
+  leadId        String?
+  dealId        String?
+  quotationId   String?          @unique
+  
+  title         String
+  description   String?          @db.Text
+  dueDate       DateTime
+  
+  currency      String           @default("USD")
+  subtotal      Float            @default(0)
+  taxRate       Float            @default(0)
+  taxAmount     Float            @default(0)
+  discount      Float            @default(0)
+  total         Float            @default(0)
+  amountPaid    Float            @default(0)
+  amountDue     Float            @default(0)
+  
+  status        InvoiceStatus    @default(DRAFT)
+  
+  // Customer details
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+  customerAddress String?        @db.Text
+  
+  // Payment details
+  paymentMethod   String?
+  paymentDetails  String?        @db.Text
+  
+  // Additional info
+  notes           String?        @db.Text
+  terms           String?        @db.Text
+  
+  // Tracking
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  paidAt          DateTime?
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead            Lead?          @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  deal            Deal?          @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  quotation       Quotation?     @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  items           InvoiceItem[]
+  payments        Payment[]
+  
+  @@index([userId])
+  @@index([leadId])
+  @@index([dealId])
+  @@index([quotationId])
+  @@index([status])
+  @@index([invoiceNumber])
+}
+
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  
+  name        String
+  description String?  @db.Text
+  quantity    Float    @default(1)
+  unitPrice   Float
+  amount      Float
+  
+  createdAt   DateTime @default(now())
+  
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@index([invoiceId])
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  VIEWED
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
 }

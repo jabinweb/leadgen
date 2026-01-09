@@ -10,6 +10,13 @@ const nextConfig = {
     ],
   },
   
+  experimental: {
+    optimizePackageImports: ['@/components/ui'],
+  },
+
+  // Configure font optimization
+  optimizeFonts: process.env.NODE_ENV === 'production',
+  
   // Security headers for production
   async headers() {
     return [

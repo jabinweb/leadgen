@@ -6,7 +6,11 @@ import { QueryProvider } from '@/components/providers/query-provider';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorBoundary } from '@/components/error-boundary';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin'],
+  fallback: ['system-ui', 'arial'],
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'LeadGen Pro - Lead Generation Platform',

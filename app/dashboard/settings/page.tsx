@@ -16,7 +16,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Building, Save, Loader2, Mail, Key, Sparkles, Globe, Info, Eye, EyeOff } from 'lucide-react';
+import { Building, Save, Loader2, Mail, Key, Sparkles, Globe, Info, Eye, EyeOff, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -43,6 +43,30 @@ export default function SettingsPage() {
     googlePlacesApiKey: '',
     aiModel: 'gemini-2.0-flash',
     preferredCurrency: 'USD',
+    // Invoice & Quotation Settings
+    companyAddress: '',
+    companyEmail: '',
+    companyPhone: '',
+    taxId: '',
+    invoicePrefix: 'INV',
+    quotationPrefix: 'QT',
+    invoiceTerms: 'Payment is due within 30 days',
+    quotationTerms: 'This quotation is valid for 30 days from the date of issue',
+    // Payment Details
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    routingNumber: '',
+    swiftCode: '',
+    iban: '',
+    paymentInstructions: '',
+    // Template Customization
+    templateStyle: 'modern',
+    primaryColor: '#2563eb',
+    secondaryColor: '#7c3aed',
+    logoUrl: '',
+    headerText: '',
+    footerText: '',
   });
 
   const { data: profile, isLoading } = useQuery({
@@ -86,6 +110,30 @@ export default function SettingsPage() {
         googlePlacesApiKey: googlePlacesKeyTouched ? formData.googlePlacesApiKey : (profile.googlePlacesApiKey || ''),
         aiModel: profile.aiModel || 'gemini-2.0-flash',
         preferredCurrency: profile.preferredCurrency || 'USD',
+        // Invoice & Quotation Settings
+        companyAddress: profile.companyAddress || '',
+        companyEmail: profile.companyEmail || '',
+        companyPhone: profile.companyPhone || '',
+        taxId: profile.taxId || '',
+        invoicePrefix: profile.invoicePrefix || 'INV',
+        quotationPrefix: profile.quotationPrefix || 'QT',
+        invoiceTerms: profile.invoiceTerms || 'Payment is due within 30 days',
+        quotationTerms: profile.quotationTerms || 'This quotation is valid for 30 days from the date of issue',
+        // Payment Details
+        bankName: profile.bankName || '',
+        accountName: profile.accountName || '',
+        accountNumber: profile.accountNumber || '',
+        routingNumber: profile.routingNumber || '',
+        swiftCode: profile.swiftCode || '',
+        iban: profile.iban || '',
+        paymentInstructions: profile.paymentInstructions || '',
+        // Template Customization
+        templateStyle: profile.templateStyle || 'modern',
+        primaryColor: profile.primaryColor || '#2563eb',
+        secondaryColor: profile.secondaryColor || '#7c3aed',
+        logoUrl: profile.logoUrl || '',
+        headerText: profile.headerText || '',
+        footerText: profile.footerText || '',
       });
       // Reset touched state after loading profile
       if (!geminiKeyTouched) setGeminiKeyTouched(false);
@@ -210,11 +258,30 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className="grid w-full max-w-full grid-cols-6">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
             <span className="hidden sm:inline">Business</span>
             <span className="sm:hidden">Info</span>
+          </TabsTrigger>
+          <TabsTrigger value="invoicing" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Invoicing</span>
+            <span className="sm:hidden">Invoice</span>
+          </TabsTrigger>
+          <TabsTrigger value="payment" className="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <span className="hidden sm:inline">Payment</span>
+            <span className="sm:hidden">Pay</span>
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+            <span className="hidden sm:inline">Templates</span>
+            <span className="sm:hidden">Theme</span>
           </TabsTrigger>
           <TabsTrigger value="ai-personalization" className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" />
@@ -366,6 +433,451 @@ export default function SettingsPage() {
                       <>
                         <Save className="mr-2 h-4 w-4" />
                         Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="invoicing" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Invoice & Quotation Settings
+                </CardTitle>
+                <CardDescription>
+                  Configure your company details for invoices and quotations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyAddress">Company Address</Label>
+                    <Textarea
+                      id="companyAddress"
+                      value={formData.companyAddress}
+                      onChange={(e) => handleChange('companyAddress', e.target.value)}
+                      placeholder="123 Business Street, City, State, ZIP"
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Address shown on invoices and quotations
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="companyEmail">Company Email</Label>
+                      <Input
+                        id="companyEmail"
+                        type="email"
+                        value={formData.companyEmail}
+                        onChange={(e) => handleChange('companyEmail', e.target.value)}
+                        placeholder="invoices@company.com"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Contact email for invoicing
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="companyPhone">Company Phone</Label>
+                      <Input
+                        id="companyPhone"
+                        type="tel"
+                        value={formData.companyPhone}
+                        onChange={(e) => handleChange('companyPhone', e.target.value)}
+                        placeholder="+1 (555) 123-4567"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="taxId">Tax ID / Registration Number</Label>
+                    <Input
+                      id="taxId"
+                      value={formData.taxId}
+                      onChange={(e) => handleChange('taxId', e.target.value)}
+                      placeholder="XX-XXXXXXX"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Your business tax identification number
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
+                      <Input
+                        id="invoicePrefix"
+                        value={formData.invoicePrefix}
+                        onChange={(e) => handleChange('invoicePrefix', e.target.value)}
+                        placeholder="INV"
+                        maxLength={5}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        e.g., INV-001
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="quotationPrefix">Quote Prefix</Label>
+                      <Input
+                        id="quotationPrefix"
+                        value={formData.quotationPrefix}
+                        onChange={(e) => handleChange('quotationPrefix', e.target.value)}
+                        placeholder="QT"
+                        maxLength={5}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        e.g., QT-001
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invoiceTerms">Default Invoice Terms</Label>
+                    <Textarea
+                      id="invoiceTerms"
+                      value={formData.invoiceTerms}
+                      onChange={(e) => handleChange('invoiceTerms', e.target.value)}
+                      placeholder="Payment is due within 30 days"
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Standard payment terms for all invoices
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quotationTerms">Default Quotation Terms</Label>
+                    <Textarea
+                      id="quotationTerms"
+                      value={formData.quotationTerms}
+                      onChange={(e) => handleChange('quotationTerms', e.target.value)}
+                      placeholder="This quotation is valid for 30 days from the date of issue"
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Standard terms for all quotations
+                    </p>
+                  </div>
+                </div>
+
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    These settings will be used as defaults when generating invoices and quotations. 
+                    You can override them for individual documents.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    {updateProfileMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payment" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  Payment Information
+                </CardTitle>
+                <CardDescription>
+                  Bank details and payment instructions for invoices
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Add your payment details to include them in invoices. This makes it easier for clients to pay you.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="bankName">Bank Name</Label>
+                    <Input
+                      id="bankName"
+                      value={formData.bankName}
+                      onChange={(e) => handleChange('bankName', e.target.value)}
+                      placeholder="Chase Bank"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountName">Account Name</Label>
+                    <Input
+                      id="accountName"
+                      value={formData.accountName}
+                      onChange={(e) => handleChange('accountName', e.target.value)}
+                      placeholder="Your Company Name"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="accountNumber">Account Number</Label>
+                    <Input
+                      id="accountNumber"
+                      value={formData.accountNumber}
+                      onChange={(e) => handleChange('accountNumber', e.target.value)}
+                      placeholder="1234567890"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="routingNumber">Routing Number / Sort Code</Label>
+                    <Input
+                      id="routingNumber"
+                      value={formData.routingNumber}
+                      onChange={(e) => handleChange('routingNumber', e.target.value)}
+                      placeholder="021000021"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="swiftCode">SWIFT / BIC Code</Label>
+                    <Input
+                      id="swiftCode"
+                      value={formData.swiftCode}
+                      onChange={(e) => handleChange('swiftCode', e.target.value)}
+                      placeholder="CHASUS33"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      For international payments
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="iban">IBAN</Label>
+                    <Input
+                      id="iban"
+                      value={formData.iban}
+                      onChange={(e) => handleChange('iban', e.target.value)}
+                      placeholder="GB29 NWBK 6016 1331 9268 19"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      International Bank Account Number
+                    </p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label htmlFor="paymentInstructions">Payment Instructions</Label>
+                  <Textarea
+                    id="paymentInstructions"
+                    value={formData.paymentInstructions}
+                    onChange={(e) => handleChange('paymentInstructions', e.target.value)}
+                    placeholder="Additional payment instructions, alternative payment methods (PayPal, Venmo, etc.), or special notes"
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This will appear on invoices along with your bank details
+                  </p>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    {updateProfileMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Payment Details
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="templates" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                  </svg>
+                  Template Customization
+                </CardTitle>
+                <CardDescription>
+                  Customize the appearance of your invoices and quotations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="templateStyle">Template Style</Label>
+                  <Select 
+                    value={formData.templateStyle} 
+                    onValueChange={(value) => handleChange('templateStyle', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="modern">Modern - Clean and contemporary</SelectItem>
+                      <SelectItem value="classic">Classic - Traditional business style</SelectItem>
+                      <SelectItem value="minimal">Minimal - Simple and elegant</SelectItem>
+                      <SelectItem value="corporate">Corporate - Professional and formal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the overall design style for your documents
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="primaryColor">Primary Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="primaryColor"
+                        type="color"
+                        value={formData.primaryColor}
+                        onChange={(e) => handleChange('primaryColor', e.target.value)}
+                        className="w-20 h-10"
+                      />
+                      <Input
+                        value={formData.primaryColor}
+                        onChange={(e) => handleChange('primaryColor', e.target.value)}
+                        placeholder="#2563eb"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Used for headers and accents
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="secondaryColor">Secondary Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="secondaryColor"
+                        type="color"
+                        value={formData.secondaryColor}
+                        onChange={(e) => handleChange('secondaryColor', e.target.value)}
+                        className="w-20 h-10"
+                      />
+                      <Input
+                        value={formData.secondaryColor}
+                        onChange={(e) => handleChange('secondaryColor', e.target.value)}
+                        placeholder="#7c3aed"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Used for quotation highlights
+                    </p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-2">
+                  <Label htmlFor="logoUrl">Logo URL</Label>
+                  <Input
+                    id="logoUrl"
+                    value={formData.logoUrl}
+                    onChange={(e) => handleChange('logoUrl', e.target.value)}
+                    placeholder="https://yourdomain.com/logo.png"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Upload your logo online and paste the URL here. Recommended size: 200x80px
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="headerText">Custom Header Text</Label>
+                    <Textarea
+                      id="headerText"
+                      value={formData.headerText}
+                      onChange={(e) => handleChange('headerText', e.target.value)}
+                      placeholder="Optional custom text to appear in the header of documents"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="footerText">Custom Footer Text</Label>
+                    <Textarea
+                      id="footerText"
+                      value={formData.footerText}
+                      onChange={(e) => handleChange('footerText', e.target.value)}
+                      placeholder="Thank you for your business! We look forward to working with you."
+                      rows={2}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This will replace the default footer text on invoices and quotations
+                    </p>
+                  </div>
+                </div>
+
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Template changes will apply to all new invoices and quotations. Existing documents won't be affected.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={updateProfileMutation.isPending}
+                  >
+                    {updateProfileMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Template Settings
                       </>
                     )}
                   </Button>

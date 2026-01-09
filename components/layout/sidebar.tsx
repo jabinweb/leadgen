@@ -22,7 +22,9 @@ import {
   MailOpen,
   Star,
   Trash2,
-  BookOpen
+  BookOpen,
+  Receipt,
+  FileCheck
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
@@ -60,6 +62,8 @@ const navigation: NavigationItem[] = [
   { name: 'Sequences', href: '/dashboard/sequences', icon: Send },
   { name: 'Tasks', href: '/dashboard/tasks', icon: List },
   { name: 'Deals', href: '/dashboard/deals', icon: CreditCard },
+  { name: 'Quotations', href: '/dashboard/quotations', icon: FileCheck },
+  { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt },
   { name: 'Email Templates', href: '/dashboard/email-templates', icon: FileText },
   { name: 'Scraping Jobs', href: '/dashboard/scraping', icon: Search },
   { name: 'New Scraping Job', href: '/dashboard/scraping/new', icon: PlayCircle },

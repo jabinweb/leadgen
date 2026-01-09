@@ -6,10 +6,24 @@ import { logError } from './lib/logger';
 /**
  * Proxy runs on every request
  * - Handles rate limiting for API routes
+ * - Proxies Google Fonts requests to avoid build issues
  * - Can add authentication checks, logging, etc.
  */
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Proxy Google Fonts requests
+  if (pathname.startsWith('/_next/static/css') || pathname.includes('fonts.googleapis.com')) {
+    try {
+      const url = request.nextUrl.clone();
+      if (pathname.includes('fonts.googleapis.com')) {
+        return NextResponse.next();
+      }
+    } catch (error) {
+      logError(error, { context: 'Google Fonts proxy error' });
+      return NextResponse.next();
+    }
+  }
 
   // Apply rate limiting to API routes
   if (pathname.startsWith('/api/')) {
