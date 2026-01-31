@@ -125,11 +125,11 @@ export class InvoiceService {
           const newLead = await prisma.lead.create({
             data: {
               userId: input.userId,
-              name: input.customerName,
+              contactName: input.customerName,
               email: input.customerEmail,
               phone: input.customerPhone || null,
               address: input.customerAddress || null,
-              companyName: input.customerName,
+              companyName: input.customerName, // Using customer name as company name for now
               status: 'NEW',
               source: 'INVOICE',
             },
