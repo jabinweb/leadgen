@@ -22,6 +22,14 @@ const createInvoiceSchema = z.object({
   paymentMethod: z.string().optional(),
   terms: z.string().optional(),
   notes: z.string().optional(),
+  // Payment details
+  bankName: z.string().optional(),
+  accountName: z.string().optional(),
+  accountNumber: z.string().optional(),
+  routingNumber: z.string().optional(),
+  swiftCode: z.string().optional(),
+  iban: z.string().optional(),
+  paymentInstructions: z.string().optional(),
   items: z.array(
     z.object({
       name: z.string().min(1, 'Item name is required'),

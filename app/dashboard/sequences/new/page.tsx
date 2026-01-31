@@ -152,7 +152,7 @@ export default function NewSequencePage() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-6">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-5xl space-y-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/sequences">

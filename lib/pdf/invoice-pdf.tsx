@@ -8,26 +8,47 @@ import {
   Font,
 } from '@react-pdf/renderer';
 
-// Register fonts (optional)
+// Register fonts with better Unicode support
 Font.register({
   family: 'Roboto',
   src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf',
+});
+
+// Use Courier New which has good Unicode support
+Font.register({
+  family: 'Courier New',
+  fonts: [
+    {
+      src: 'https://fonts.gstatic.com/s/courierprime/v8/u-450q2lgwslOqpF_6gQ8kELawFpWg.woff2',
+      fontWeight: 400,
+    },
+  ],
 });
 
 const styles = StyleSheet.create({
   page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 40,
+    padding: 30,
     fontFamily: 'Helvetica',
   },
   header: {
-    marginBottom: 30,
+    marginBottom: 20,
     borderBottom: '2 solid #333',
-    paddingBottom: 20,
+    paddingBottom: 15,
+  },
+  logoSpace: {
+    width: 120,
+    height: 60,
+    marginBottom: 10,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 4,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   companyName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 5,
@@ -37,21 +58,26 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 1.4,
   },
+  invoiceHeader: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   invoiceTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 'bold',
     color: '#2563eb',
-    textAlign: 'right',
-    marginTop: -40,
+    letterSpacing: 2,
+    marginBottom: 8,
   },
   invoiceNumber: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#666',
-    textAlign: 'right',
-    marginTop: 5,
+    marginTop: 3,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 15,
   },
   sectionTitle: {
     fontSize: 12,
@@ -84,13 +110,14 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   value: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#333',
-    marginBottom: 6,
+    marginBottom: 4,
+    lineHeight: 1.5,
   },
   table: {
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: 15,
+    marginBottom: 15,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -118,7 +145,7 @@ const styles = StyleSheet.create({
   col3: { width: '20%', textAlign: 'right' },
   col4: { width: '20%', textAlign: 'right' },
   totalsSection: {
-    marginTop: 20,
+    marginTop: 10,
     marginLeft: 'auto',
     width: '45%',
   },
@@ -139,12 +166,9 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    borderTop: '1 solid #e5e7eb',
+    marginTop: 30,
     paddingTop: 15,
+    borderTop: '1 solid #e5e7eb',
   },
   footerText: {
     fontSize: 9,
@@ -241,17 +265,28 @@ const getStatusStyle = (status: string) => {
 };
 
 const formatCurrency = (amount: number, currency: string) => {
-  const symbols: Record<string, string> = {
-    USD: '$',
-    EUR: '€',
-    GBP: '£',
-    INR: '₹',
-    AUD: 'A$',
-    CAD: 'C$',
-    JPY: '¥',
+  const currencyFormatters: Record<string, (amt: number) => string> = {
+    USD: (amt) => `$${amt.toFixed(2)}`,
+    EUR: (amt) => `€${amt.toFixed(2)}`,
+    GBP: (amt) => `£${amt.toFixed(2)}`,
+    INR: (amt) => `Rs. ${amt.toFixed(2)}`,
+    AUD: (amt) => `A$${amt.toFixed(2)}`,
+    CAD: (amt) => `C$${amt.toFixed(2)}`,
+    JPY: (amt) => `¥${amt.toFixed(0)}`,
+    CNY: (amt) => `¥${amt.toFixed(2)}`,
+    CHF: (amt) => `CHF ${amt.toFixed(2)}`,
+    SEK: (amt) => `${amt.toFixed(2)} kr`,
+    NZD: (amt) => `NZ$${amt.toFixed(2)}`,
   };
-  const symbol = symbols[currency] || currency;
-  return `${symbol}${amount.toFixed(2)}`;
+  const formatter = currencyFormatters[currency.toUpperCase()];
+  return formatter ? formatter(amount) : `${currency} ${amount.toFixed(2)}`;
+};
+
+// Function to clean up corrupted currency symbols in text
+const cleanCurrencySymbols = (text: string) => {
+  if (!text) return text;
+  // Replace corrupted Rupee symbols with Rs.
+  return text.replace(/¹/g, 'Rs. ');
 };
 
 const formatDate = (date: string) => {
@@ -289,12 +324,9 @@ export const InvoicePDF: React.FC<{ invoice: InvoiceData }> = ({ invoice }) => {
               <Text style={styles.companyDetails}>Tax ID: {invoice.companyTaxId}</Text>
             )}
           </View>
-          <View>
+          <View style={styles.invoiceHeader}>
             <Text style={styles.invoiceTitle}>INVOICE</Text>
             <Text style={styles.invoiceNumber}>{invoice.invoiceNumber}</Text>
-            <View style={getStatusStyle(invoice.status)}>
-              <Text>{invoice.status}</Text>
-            </View>
           </View>
         </View>
       </View>
@@ -372,7 +404,7 @@ export const InvoicePDF: React.FC<{ invoice: InvoiceData }> = ({ invoice }) => {
 
         {invoice.taxRate > 0 && (
           <View style={styles.totalRow}>
-            <Text>Tax ({invoice.taxRate}%):</Text>
+            <Text>Tax ({invoice.taxRate.toFixed(2)}%):</Text>
             <Text>{formatCurrency(invoice.taxAmount, invoice.currency)}</Text>
           </View>
         )}
@@ -400,27 +432,29 @@ export const InvoicePDF: React.FC<{ invoice: InvoiceData }> = ({ invoice }) => {
         )}
       </View>
 
-      {/* Terms & Notes */}
-      {(invoice.terms || invoice.notes) && (
-        <View style={styles.section}>
-          {invoice.terms && (
+      {/* Terms, Notes & Payment Information - Wrap together */}
+      {((invoice.terms || invoice.notes) || (invoice.bankName || invoice.accountNumber || invoice.paymentInstructions)) && (
+        <View style={{ marginBottom: 15, marginTop: 10 }}>
+          {(invoice.terms || invoice.notes) && (
             <View style={{ marginBottom: 10 }}>
-              <Text style={styles.sectionTitle}>Payment Terms</Text>
-              <Text style={{ fontSize: 9, color: '#666' }}>{invoice.terms}</Text>
+              {invoice.terms && (
+                <View style={{ marginBottom: 6 }}>
+                  <Text style={styles.sectionTitle}>Payment Terms</Text>
+                  <Text style={{ fontSize: 9, color: '#666', lineHeight: 1.4 }}>{cleanCurrencySymbols(invoice.terms)}</Text>
+                </View>
+              )}
+              {invoice.notes && (
+                <View>
+                  <Text style={styles.sectionTitle}>Notes</Text>
+                  <Text style={{ fontSize: 9, color: '#666', lineHeight: 1.4 }}>{cleanCurrencySymbols(invoice.notes)}</Text>
+                </View>
+              )}
             </View>
           )}
-          {invoice.notes && (
-            <View>
-              <Text style={styles.sectionTitle}>Notes</Text>
-              <Text style={{ fontSize: 9, color: '#666' }}>{invoice.notes}</Text>
-            </View>
-          )}
-        </View>
-      )}
 
       {/* Payment Information */}
       {(invoice.bankName || invoice.accountNumber || invoice.paymentInstructions) && (
-        <View style={styles.section}>
+        <View>
           <Text style={styles.sectionTitle}>Payment Information</Text>
           <View style={{ 
             padding: 12, 
@@ -472,6 +506,8 @@ export const InvoicePDF: React.FC<{ invoice: InvoiceData }> = ({ invoice }) => {
               </View>
             )}
           </View>
+        </View>
+      )}
         </View>
       )}
 

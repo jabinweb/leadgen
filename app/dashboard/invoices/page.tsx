@@ -18,9 +18,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, Send, DollarSign, AlertCircle } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, FileText, Send, DollarSign, AlertCircle, Eye, Download, MoreVertical, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/currency";
+import { toast } from "sonner";
 
 interface Invoice {
   id: string;
@@ -91,6 +98,45 @@ export default function InvoicesPage() {
     );
   };
 
+  const handleDownload = async (invoiceId: string, invoiceNumber: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/pdf`);
+      if (!response.ok) throw new Error("Failed to download PDF");
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoiceNumber}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Invoice downloaded successfully");
+    } catch (error) {
+      console.error("Error downloading invoice:", error);
+      toast.error("Failed to download invoice");
+    }
+  };
+
+  const handleSend = async (invoiceId: string) => {
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}/send`, {
+        method: "POST",
+      });
+      
+      if (!response.ok) throw new Error("Failed to send invoice");
+      
+      const data = await response.json();
+      toast.success("Invoice sent successfully");
+      fetchData(); // Refresh the list
+    } catch (error) {
+      console.error("Error sending invoice:", error);
+      toast.error("Failed to send invoice");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -100,7 +146,7 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="container mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold">Invoices</h1>
@@ -121,7 +167,7 @@ export default function InvoicesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${stats.totalRevenue.toFixed(2)}
+                {formatCurrency(stats.totalRevenue, stats.currency || 'USD')}
               </div>
               <p className="text-xs text-gray-500">{stats.total} invoices</p>
             </CardContent>
@@ -133,7 +179,7 @@ export default function InvoicesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ${stats.paidRevenue.toFixed(2)}
+                {formatCurrency(stats.paidRevenue, stats.currency || 'USD')}
               </div>
               <p className="text-xs text-gray-500">{stats.paid} invoices</p>
             </CardContent>
@@ -145,7 +191,7 @@ export default function InvoicesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">
-                ${stats.overdueAmount.toFixed(2)}
+                {formatCurrency(stats.overdueAmount, stats.currency || 'USD')}
               </div>
               <p className="text-xs text-gray-500">{stats.overdue} invoices</p>
             </CardContent>
@@ -244,15 +290,41 @@ export default function InvoicesPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          router.push(`/dashboard/invoices/${invoice.id}`)
-                        }
-                      >
-                        View
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/dashboard/invoices/${invoice.id}`)}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => router.push(`/dashboard/invoices/${invoice.id}/edit`)}
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Edit Invoice
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDownload(invoice.id, invoice.invoiceNumber)}
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download PDF
+                          </DropdownMenuItem>
+                          {invoice.status === "DRAFT" && (
+                            <DropdownMenuItem
+                              onClick={() => handleSend(invoice.id)}
+                            >
+                              <Send className="w-4 h-4 mr-2" />
+                              Send Invoice
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}

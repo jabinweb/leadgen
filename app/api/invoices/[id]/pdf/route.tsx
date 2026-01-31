@@ -25,6 +25,16 @@ export async function GET(
       where: { userId: invoice.userId },
     });
 
+    // Parse payment details if available
+    let paymentDetails: any = {};
+    if (invoice.paymentDetails) {
+      try {
+        paymentDetails = JSON.parse(invoice.paymentDetails);
+      } catch (e) {
+        // Invalid JSON, ignore
+      }
+    }
+
     // Prepare data for PDF
     const pdfData = {
       invoiceNumber: invoice.invoiceNumber,
@@ -57,6 +67,14 @@ export async function GET(
       companyEmail: userProfile?.companyEmail || invoice.user.email || undefined,
       companyPhone: (userProfile as any)?.companyPhone || undefined,
       companyTaxId: (userProfile as any)?.taxId || undefined,
+      // Payment details
+      bankName: paymentDetails.bankName || undefined,
+      accountName: paymentDetails.accountName || undefined,
+      accountNumber: paymentDetails.accountNumber || undefined,
+      routingNumber: paymentDetails.routingNumber || undefined,
+      swiftCode: paymentDetails.swiftCode || undefined,
+      iban: paymentDetails.iban || undefined,
+      paymentInstructions: paymentDetails.paymentInstructions || undefined,
     };
 
     // Generate PDF

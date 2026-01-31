@@ -22,3 +22,20 @@ export async function GET(
     return handleApiError(error);
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await requireAuth(req);
+    const { id } = await params;
+    const body = await req.json();
+    
+    const invoice = await invoiceService.updateInvoice(id, session.user.id, body);
+    
+    return NextResponse.json(invoice);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

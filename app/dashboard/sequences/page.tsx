@@ -60,11 +60,11 @@ export default function SequencesPage() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading sequences...</div>;
+    return <div className="container mx-auto p-4 md:p-6 lg:p-8">Loading sequences...</div>;
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Email Sequences</h1>

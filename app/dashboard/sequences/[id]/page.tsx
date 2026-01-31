@@ -116,15 +116,15 @@ export default function SequenceDetailsPage({ params }: { params: { id: string }
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return <div className="container mx-auto p-4 md:p-6 lg:p-8">Loading...</div>;
   }
 
   if (!stats) {
-    return <div className="p-8">Sequence not found</div>;
+    return <div className="container mx-auto p-4 md:p-6 lg:p-8">Sequence not found</div>;
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/sequences">

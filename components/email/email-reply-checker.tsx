@@ -33,25 +33,43 @@ export function EmailReplyChecker() {
           if (result.processed > 0) {
             console.log(`✅ Processed ${result.processed} email replies`);
           }
+        } else {
+          // Handle error responses properly
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          // Only log once if IMAP not configured, suppress subsequent errors
+          if (errorData.error === 'IMAP not configured') {
+            if (!sessionStorage.getItem('imap-not-configured-logged')) {
+              console.log(`ℹ️ Email reply check: ${errorData.message || 'IMAP not configured'}`);
+              sessionStorage.setItem('imap-not-configured-logged', 'true');
+            }
+          } else {
+            console.log(`ℹ️ Email reply check: ${errorData.message || errorData.error || 'Check failed'}`);
+          }
         }
-      } catch (error) {
-        console.error('Error checking replies:', error);
+      } catch (error: any) {
+        // Silently handle fetch errors - likely due to missing IMAP dependencies or route not available
+        // Only log once to avoid console spam
+        if (!sessionStorage.getItem('email-checker-error-logged')) {
+          console.log('ℹ️ Email reply checker: Route unavailable (IMAP dependencies may not be installed)');
+          sessionStorage.setItem('email-checker-error-logged', 'true');
+        }
       } finally {
         isCheckingRef.current = false;
       }
     };
 
-    // Check immediately on mount
-    checkReplies();
+    // Delay initial check by 5 seconds to let app fully load
+    const initialTimeout = setTimeout(checkReplies, 5000);
 
-    // Then check every 30 seconds
-    intervalRef.current = setInterval(checkReplies, 30000);
+    // Then check every 60 seconds (reduced frequency)
+    intervalRef.current = setInterval(checkReplies, 60000);
 
     // Cleanup on unmount
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      clearTimeout(initialTimeout);
     };
   }, [session]);
 

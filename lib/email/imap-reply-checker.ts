@@ -1,7 +1,31 @@
-// @ts-ignore - imap types may not be perfect
-import Imap from 'imap';
-// @ts-ignore - mailparser types may not be perfect
-import { simpleParser } from 'mailparser';
+// Dynamic imports to avoid build issues
+let Imap: any;
+let simpleParser: any;
+
+async function loadImapDependencies() {
+  if (!Imap) {
+    try {
+      // @ts-ignore - imap is a CommonJS module
+      const imapModule = await import('imap');
+      Imap = imapModule.default || imapModule;
+    } catch (error) {
+      console.error('Failed to load imap package:', error);
+      throw new Error('IMAP package not available');
+    }
+  }
+  
+  if (!simpleParser) {
+    try {
+      // @ts-ignore - mailparser types may not be perfect
+      const mailparserModule = await import('mailparser');
+      simpleParser = mailparserModule.simpleParser;
+    } catch (error) {
+      console.error('Failed to load mailparser package:', error);
+      throw new Error('Mailparser package not available');
+    }
+  }
+}
+
 import { findEmailLogForReply, trackEmailReply } from '@/lib/email-logger';
 import { prisma } from '@/lib/prisma';
 import { decrypt } from '@/lib/encryption';
@@ -54,6 +78,9 @@ export class ImapReplyChecker {
     if (!this.isConfigured()) {
       throw new Error('IMAP not configured. Set IMAP_USER and IMAP_PASSWORD in .env');
     }
+
+    // Load dependencies dynamically
+    await loadImapDependencies();
 
     return new Promise((resolve, reject) => {
       const imap = new Imap({

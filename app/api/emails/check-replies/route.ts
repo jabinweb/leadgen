@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { getImapReplyChecker } from '@/lib/email/imap-reply-checker';
+
+// Dynamically import the IMAP checker to avoid build errors if dependencies are missing
+async function loadImapChecker() {
+  try {
+    const { getImapReplyChecker } = await import('@/lib/email/imap-reply-checker');
+    return getImapReplyChecker;
+  } catch (error) {
+    console.error('[IMAP] Failed to load IMAP checker:', error);
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -8,6 +18,19 @@ export async function POST(req: NextRequest) {
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Load IMAP checker dynamically
+    const getImapReplyChecker = await loadImapChecker();
+    
+    if (!getImapReplyChecker) {
+      return NextResponse.json(
+        {
+          error: 'IMAP dependencies not available',
+          message: 'IMAP packages are not installed. Install with: npm install imap mailparser',
+        },
+        { status: 503 }
+      );
     }
 
     // Get checker with user's IMAP config or fallback to default
@@ -68,6 +91,20 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     const userId = session?.user?.id;
     
+    // Load IMAP checker dynamically
+    const getImapReplyChecker = await loadImapChecker();
+    
+    if (!getImapReplyChecker) {
+      return NextResponse.json({
+        configured: false,
+        error: 'IMAP dependencies not installed',
+        instructions: {
+          install: 'npm install imap mailparser @types/imap',
+          note: 'IMAP packages are optional and only needed for email reply tracking',
+        },
+      });
+    }
+
     const checker = await getImapReplyChecker(userId);
 
     return NextResponse.json({

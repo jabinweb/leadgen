@@ -20,6 +20,14 @@ export interface CreateInvoiceInput {
   paymentMethod?: string;
   terms?: string;
   notes?: string;
+  // Payment details
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  routingNumber?: string;
+  swiftCode?: string;
+  iban?: string;
+  paymentInstructions?: string;
   items: Array<{
     name: string;
     description?: string;
@@ -100,11 +108,45 @@ export class InvoiceService {
         ? new Date(Date.now() + input.dueInDays * 24 * 60 * 60 * 1000)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
 
+      // Auto-create customer as lead if they don't exist
+      let leadId = input.leadId;
+      if (!leadId && input.customerEmail) {
+        const existingLead = await prisma.lead.findFirst({
+          where: {
+            userId: input.userId,
+            email: input.customerEmail,
+          },
+        });
+
+        if (existingLead) {
+          leadId = existingLead.id;
+        } else {
+          // Create new lead from invoice customer data
+          const newLead = await prisma.lead.create({
+            data: {
+              userId: input.userId,
+              name: input.customerName,
+              email: input.customerEmail,
+              phone: input.customerPhone || null,
+              address: input.customerAddress || null,
+              companyName: input.customerName,
+              status: 'NEW',
+              source: 'INVOICE',
+            },
+          });
+          leadId = newLead.id;
+          logger.info({
+            leadId: newLead.id,
+            customerEmail: input.customerEmail,
+          }, 'Auto-created lead from invoice customer data');
+        }
+      }
+
       const invoice = await prisma.invoice.create({
         data: {
           invoiceNumber,
           userId: input.userId,
-          leadId: input.leadId,
+          leadId,
           dealId: input.dealId,
           quotationId: input.quotationId,
           title: input.title,
@@ -123,6 +165,15 @@ export class InvoiceService {
           amountDue: total,
           dueDate,
           paymentMethod: input.paymentMethod,
+          paymentDetails: input.bankName || input.accountNumber ? JSON.stringify({
+            bankName: input.bankName,
+            accountName: input.accountName,
+            accountNumber: input.accountNumber,
+            routingNumber: input.routingNumber,
+            swiftCode: input.swiftCode,
+            iban: input.iban,
+            paymentInstructions: input.paymentInstructions,
+          }) : null,
           terms: input.terms,
           notes: input.notes,
           status: 'DRAFT',
@@ -537,7 +588,7 @@ export class InvoiceService {
    */
   async getInvoiceStats(userId: string) {
     try {
-      const [total, paid, overdue, pending, totalRevenue, paidRevenue, overdueAmount] =
+      const [total, paid, overdue, pending, totalRevenue, paidRevenue, overdueAmount, userProfile] =
         await Promise.all([
           prisma.invoice.count({ where: { userId } }),
           prisma.invoice.count({ where: { userId, status: 'PAID' } }),
@@ -557,6 +608,10 @@ export class InvoiceService {
             where: { userId, status: 'OVERDUE' },
             _sum: { amountDue: true },
           }),
+          prisma.userProfile.findUnique({
+            where: { userId },
+            select: { preferredCurrency: true },
+          }),
         ]);
 
       return {
@@ -567,12 +622,119 @@ export class InvoiceService {
         totalRevenue: totalRevenue._sum.total || 0,
         paidRevenue: paidRevenue._sum.total || 0,
         overdueAmount: overdueAmount._sum.amountDue || 0,
+        currency: userProfile?.preferredCurrency || 'USD',
       };
     } catch (error) {
       logger.error({ error, userId }, 'Failed to get invoice stats');
       throw error;
     }
   }
+
+  /**
+   * Update an existing invoice
+   */
+  async updateInvoice(
+    invoiceId: string,
+    userId: string,
+    input: Partial<CreateInvoiceInput> & { status?: InvoiceStatus }
+  ) {
+    try {
+      // Verify ownership
+      const existingInvoice = await prisma.invoice.findFirst({
+        where: { id: invoiceId, userId },
+        include: { items: true },
+      });
+
+      if (!existingInvoice) {
+        throw new Error('Invoice not found or access denied');
+      }
+
+      let updateData: any = {
+        title: input.title,
+        description: input.description,
+        customerName: input.customerName,
+        customerEmail: input.customerEmail,
+        customerPhone: input.customerPhone,
+        customerAddress: input.customerAddress,
+        currency: input.currency,
+        taxRate: input.taxRate,
+        discount: input.discount,
+        terms: input.terms,
+        notes: input.notes,
+        status: input.status,
+      };
+
+      // Handle payment details
+      if (input.bankName || input.accountName || input.accountNumber || 
+          input.routingNumber || input.swiftCode || input.iban || 
+          input.paymentInstructions) {
+        updateData.paymentDetails = JSON.stringify({
+          bankName: input.bankName,
+          accountName: input.accountName,
+          accountNumber: input.accountNumber,
+          routingNumber: input.routingNumber,
+          swiftCode: input.swiftCode,
+          iban: input.iban,
+          paymentInstructions: input.paymentInstructions,
+        });
+      }
+
+      // Update items if provided
+      if (input.items && input.items.length > 0) {
+        const { subtotal, taxAmount, total } = this.calculateTotals(
+          input.items,
+          input.taxRate || 0,
+          input.discount || 0
+        );
+
+        updateData.subtotal = subtotal;
+        updateData.taxAmount = taxAmount;
+        updateData.total = total;
+        updateData.amountDue = total - existingInvoice.amountPaid;
+
+        // Delete existing items and create new ones
+        await prisma.invoiceItem.deleteMany({
+          where: { invoiceId },
+        });
+
+        updateData.items = {
+          create: input.items.map((item) => ({
+            name: item.name,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.quantity * item.unitPrice,
+          })),
+        };
+      }
+
+      const invoice = await prisma.invoice.update({
+        where: { id: invoiceId },
+        data: updateData,
+        include: {
+          items: true,
+          lead: true,
+          deal: true,
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
+
+      logger.info({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+      }, 'Invoice updated successfully');
+
+      return invoice;
+    } catch (error) {
+      logger.error({ error, invoiceId, userId }, 'Failed to update invoice');
+      throw error;
+    }
+  }
 }
 
 export const invoiceService = new InvoiceService();
+
