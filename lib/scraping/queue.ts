@@ -15,30 +15,30 @@ class ScrapingQueue {
 
   async initialize() {
     if (this.initialized) return;
-    
+
     console.log('[Queue] Initializing queue and loading pending jobs...');
-    
+
     try {
       const { prisma } = await import('@/lib/prisma');
-      
+
       // Reset any RUNNING jobs to PENDING (they were interrupted by server restart)
       const resetResult = await prisma.scrapingJob.updateMany({
         where: { status: 'RUNNING' },
         data: { status: 'PENDING' },
       });
-      
+
       if (resetResult.count > 0) {
         console.log(`[Queue] Reset ${resetResult.count} stuck RUNNING jobs to PENDING`);
       }
-      
+
       // Find all PENDING jobs
       const pendingJobs = await prisma.scrapingJob.findMany({
         where: { status: 'PENDING' },
         orderBy: { createdAt: 'asc' },
       });
-      
+
       console.log(`[Queue] Found ${pendingJobs.length} pending jobs to process`);
-      
+
       // Add them to the queue
       for (const job of pendingJobs) {
         this.queue.push({
@@ -47,9 +47,9 @@ class ScrapingQueue {
           userId: job.userId,
         });
       }
-      
+
       this.initialized = true;
-      
+
       // Start processing
       if (this.queue.length > 0) {
         this.processQueue();
@@ -62,7 +62,7 @@ class ScrapingQueue {
   async addJob(jobId: string, config: ScrapingConfig, userId: string) {
     // Ensure queue is initialized
     await this.initialize();
-    
+
     this.queue.push({ jobId, config, userId });
     this.processQueue();
   }
@@ -87,14 +87,14 @@ class ScrapingQueue {
 
   private async processJob(item: QueueItem) {
     const scraper = new WebScraper();
-    
+
     try {
       console.log(`[Queue] Starting job ${item.jobId}...`);
-      
+
       // Fetch user's API keys
       const { prisma } = await import('@/lib/prisma');
       const { decrypt } = await import('@/lib/encryption');
-      
+
       const userProfile = await prisma.userProfile.findUnique({
         where: { userId: item.userId },
         select: { geminiApiKey: true, googlePlacesApiKey: true, aiModel: true },
@@ -108,20 +108,33 @@ class ScrapingQueue {
 
       console.log(`[Queue] Starting API-based scraping for job ${item.jobId}...`);
       await scraper.scrapeLeads(item.jobId, item.config, item.userId, userApiKeys);
-      
+
       console.log(`[Queue] Job ${item.jobId} completed successfully`);
     } catch (error: any) {
       console.error(`[Queue] Scraping job ${item.jobId} failed:`, error);
       console.error(`[Queue] Error details:`, error.message, error.stack);
-      
-      // Update job status to failed
+
+      // Clean up any orphaned leads and update job status to failed
       try {
         const { prisma } = await import('@/lib/prisma');
+
+        // Delete any leads that were saved before the error occurred
+        const deletedLeads = await prisma.lead.deleteMany({
+          where: { scrapingJobId: item.jobId },
+        });
+        if (deletedLeads.count > 0) {
+          console.log(`[Queue] 🧹 Cleaned up ${deletedLeads.count} orphaned leads from failed job ${item.jobId}`);
+        }
+
         await prisma.scrapingJob.update({
           where: { id: item.jobId },
-          data: { 
+          data: {
             status: 'FAILED',
+            progress: 0,
+            totalFound: 0,
+            successCount: 0,
             errorMessage: error.message || 'Unknown error',
+            completedAt: new Date(),
           },
         });
       } catch (updateError) {
@@ -129,7 +142,7 @@ class ScrapingQueue {
       }
     } finally {
       this.currentJobs.delete(item.jobId);
-      
+
       // Process next items in queue
       if (this.queue.length > 0) {
         this.processQueue();

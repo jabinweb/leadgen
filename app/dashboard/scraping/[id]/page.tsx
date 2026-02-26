@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  ArrowLeft, 
-  Play, 
-  Check, 
-  AlertCircle, 
+import {
+  ArrowLeft,
+  Play,
+  Check,
+  AlertCircle,
   Clock,
   Square,
   Download
@@ -204,18 +204,21 @@ export default function ScrapingJobDetailPage() {
               <p className="text-sm font-medium text-muted-foreground">Progress</p>
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span>{job.progress}%</span>
+                  <span>{job.status === 'FAILED' ? '0' : job.progress}%</span>
                   <span>{job.totalFound} found</span>
                 </div>
-                <Progress value={job.progress} className="h-2" />
+                <Progress value={job.status === 'FAILED' ? 0 : job.progress} className="h-2" />
               </div>
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Success</p>
+              <p className="text-sm font-medium text-muted-foreground">Saved</p>
               <p className="text-2xl font-bold text-green-600">{job.successCount}</p>
+              {job.errorCount > 0 && (
+                <p className="text-xs text-muted-foreground">{job.errorCount} filtered/duplicates</p>
+              )}
             </div>
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Leads Collected</p>
+              <p className="text-sm font-medium text-muted-foreground">Leads in Database</p>
               <p className="text-2xl font-bold">{job._count?.leads || 0}</p>
             </div>
           </div>

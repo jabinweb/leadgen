@@ -6,20 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
-import { 
-  Play, 
-  Pause, 
-  Square, 
-  Check, 
-  AlertCircle, 
+import {
+  Play,
+  Pause,
+  Square,
+  Check,
+  AlertCircle,
   Clock,
   Plus,
   Eye,
@@ -157,7 +157,7 @@ export default function ScrapingJobsPage() {
     e.stopPropagation();
     try {
       const config = job.configuration || {};
-      
+
       const response = await fetch('/api/scraping/jobs', {
         method: 'POST',
         headers: {
@@ -205,7 +205,7 @@ export default function ScrapingJobsPage() {
       toast.error('Please select jobs to delete');
       return;
     }
-    
+
     if (!confirm(`Are you sure you want to delete ${selectedJobs.length} job(s)? This will also delete all associated leads.`)) {
       return;
     }
@@ -309,7 +309,7 @@ export default function ScrapingJobsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]">
-                      <Checkbox 
+                      <Checkbox
                         checked={selectedJobs.length === data?.jobs?.length && data?.jobs?.length > 0}
                         onCheckedChange={handleSelectAll}
                       />
@@ -324,13 +324,13 @@ export default function ScrapingJobsPage() {
                 </TableHeader>
                 <TableBody>
                   {data?.jobs?.map((job: any) => (
-                    <TableRow 
+                    <TableRow
                       key={job.id}
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleViewJob(job.id)}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedJobs.includes(job.id)}
                           onCheckedChange={(checked) => handleSelectJob(job.id, checked as boolean)}
                         />
@@ -351,9 +351,9 @@ export default function ScrapingJobsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div className="text-green-600">{job.successCount} success</div>
+                          <div className="text-green-600">{job.successCount} saved</div>
                           {job.errorCount > 0 && (
-                            <div className="text-red-600">{job.errorCount} errors</div>
+                            <div className="text-amber-600">{job.errorCount} filtered</div>
                           )}
                           <div className="text-muted-foreground">{job._count?.leads || 0} leads</div>
                         </div>
@@ -388,7 +388,7 @@ export default function ScrapingJobsPage() {
                               Rerun Job
                             </DropdownMenuItem>
                             {job.status === 'RUNNING' && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={(e) => handleCancelJob(job.id, e)}
                                 className="text-red-600"
                               >

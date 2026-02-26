@@ -35,6 +35,14 @@ export async function POST(
       );
     }
 
+    // Delete leads from the previous run to start clean
+    const deletedLeads = await prisma.lead.deleteMany({
+      where: { scrapingJobId: id },
+    });
+    if (deletedLeads.count > 0) {
+      console.log(`[Retry] Cleaned up ${deletedLeads.count} stale leads from job ${id}`);
+    }
+
     // Reset job status and add back to queue
     const updatedJob = await prisma.scrapingJob.update({
       where: {
